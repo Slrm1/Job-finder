@@ -62,11 +62,31 @@ class Job:
     company: str
     location: str
     description: str
+    apply_email: str | None = None
+    apply_url: str | None = None
+    apply_method: str = "email"
 
     def summary(self) -> str:
         return (
             f"- {self.title} at {self.company} ({self.location})\n"
             f"  {self.description}"
+        )
+
+    @property
+    def slug(self) -> str:
+        raw = f"{self.company}-{self.title}".lower()
+        return re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+
+    @classmethod
+    def from_dict(cls, item: dict) -> "Job":
+        return cls(
+            title=item["title"],
+            company=item["company"],
+            location=item["location"],
+            description=item["description"],
+            apply_email=item.get("apply_email"),
+            apply_url=item.get("apply_url"),
+            apply_method=item.get("apply_method") or ("email" if item.get("apply_email") else "url"),
         )
 
 
@@ -81,7 +101,20 @@ def load_jobs(path: Path | None = None) -> list[Job]:
     jobs_path = path or SAMPLE_JOBS_PATH
     with open(jobs_path) as f:
         data = json.load(f)
-    return [Job(**item) for item in data]
+    return [Job.from_dict(item) for item in data]
+
+
+def find_jobs(query: str, jobs: list[Job] | None = None) -> list[Job]:
+    job_list = jobs or load_jobs()
+    needle = query.lower().strip()
+    exact = [job for job in job_list if job.title.lower() == needle]
+    if exact:
+        return exact
+    return [
+        job
+        for job in job_list
+        if needle in job.title.lower() or needle in job.company.lower()
+    ]
 
 
 def _build_match_prompt(resume: str, jobs: list[Job]) -> list[dict]:
