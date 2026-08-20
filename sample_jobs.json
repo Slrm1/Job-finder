@@ -1,0 +1,32 @@
+[
+  {
+    "title": "Machine Learning Engineer",
+    "company": "TechCorp",
+    "location": "Remote",
+    "description": "Build and deploy ML models. Experience with PyTorch, transformers, and LLM fine-tuning required. Python 3.11+."
+  },
+  {
+    "title": "Data Analyst",
+    "company": "FinanceHub",
+    "location": "New York, NY",
+    "description": "Analyze financial datasets, create dashboards in Tableau, and present insights to stakeholders. SQL and Excel required."
+  },
+  {
+    "title": "Software Engineer - Backend",
+    "company": "StartupXYZ",
+    "location": "San Francisco, CA",
+    "description": "Design scalable APIs with Python/FastAPI. Experience with cloud infrastructure (AWS/GCP) and Docker preferred."
+  },
+  {
+    "title": "AI Research Intern",
+    "company": "ResearchLab",
+    "location": "Remote",
+    "description": "Assist with NLP research projects. Familiarity with Hugging Face, PyTorch, and academic paper reading required."
+  },
+  {
+    "title": "DevOps Engineer",
+    "company": "CloudScale",
+    "location": "Austin, TX",
+    "description": "Manage CI/CD pipelines, Kubernetes clusters, and infrastructure as code with Terraform."
+  }
+]

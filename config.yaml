@@ -1,0 +1,12 @@
+model:
+  id: WebScraper991923/Affine-S6
+  url: https://huggingface.co/WebScraper991923/Affine-S6
+  architecture: Qwen3ForCausalLM
+  parameters: 4B
+  context_length: 262144
+  pipeline_tag: text-generation
+
+inference:
+  max_new_tokens: 2048
+  temperature: 0.7
+  top_p: 0.8
