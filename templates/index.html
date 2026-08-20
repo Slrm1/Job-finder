@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ app_name }} · Affine-S6</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand-mark" href="#top">{{ app_name }}</a>
+    <nav>
+      <a href="#workspace">Match</a>
+      <a href="https://huggingface.co/{{ model_id }}" target="_blank" rel="noopener">Affine-S6</a>
+    </nav>
+    <span class="status {% if model_ready %}on{% else %}off{% endif %}" title="Model readiness">
+      {% if model_ready %}Affine-S6 live{% else %}Set HF_TOKEN{% endif %}
+    </span>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-media" role="img" aria-label="Sunlit desk with notebook and laptop by a window"></div>
+      <div class="hero-veil"></div>
+      <div class="hero-copy">
+        <p class="brand-hero">{{ app_name }}</p>
+        <h1>Find the role that fits how you work.</h1>
+        <p class="lede">Remote matches ranked by Affine-S6 — the Affine reasoning model wired into your search.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="#workspace">Start matching</a>
+          <a class="btn ghost" href="https://huggingface.co/{{ model_id }}" target="_blank" rel="noopener">Model card</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="workspace" class="workspace">
+      <div class="workspace-intro">
+        <h2>Your profile → ranked remote roles</h2>
+        <p>Paste a resume or short bio. We pull live remote listings and let Affine-S6 score the fit.</p>
+      </div>
+
+      <form id="match-form" class="panel">
+        <label for="profile">Resume / profile</label>
+        <textarea id="profile" name="profile" rows="10" required placeholder="Paste your resume, LinkedIn About, or a short skills + experience summary…"></textarea>
+
+        <div class="row">
+          <div>
+            <label for="search">Search focus</label>
+            <input id="search" name="search" type="text" placeholder="e.g. python, product design" />
+          </div>
+          <div>
+            <label for="category">Category</label>
+            <select id="category" name="category">
+              <option value="">Any</option>
+              <option>software-dev</option>
+              <option>customer-support</option>
+              <option>design</option>
+              <option>marketing</option>
+              <option>sales</option>
+              <option>product</option>
+              <option>data</option>
+              <option>devops</option>
+              <option>finance</option>
+              <option>hr</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn primary" id="match-btn">Match with Affine-S6</button>
+          <button type="button" class="btn ghost" id="tips-btn">Resume tips</button>
+        </div>
+      </form>
+
+      <div id="output" class="output" hidden>
+        <div class="output-head">
+          <h3 id="output-title">Results</h3>
+          <span id="mode-badge" class="badge"></span>
+        </div>
+        <article id="advice" class="prose"></article>
+        <div id="job-list" class="job-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>
+      Model:
+      <a href="https://huggingface.co/{{ model_id }}" target="_blank" rel="noopener">{{ model_id }}</a>
+      · Jobs via Remotive
+    </p>
+  </footer>
+
+  <script>
+    window.__JF__ = {
+      modelId: {{ model_id|tojson }},
+      modelReady: {{ model_ready|tojson }}
+    };
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
