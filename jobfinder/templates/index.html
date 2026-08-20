@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job-finder · Affine-S6</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2330;
+      --ink: #e7ecf3;
+      --muted: #9aa8b8;
+      --accent: #6ea8fe;
+      --good: #3dd68c;
+      --warn: #f4c95d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1c3354 0%, var(--bg) 55%);
+      color: var(--ink);
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    h1 { margin: 0 0 .35rem; font-size: 2rem; }
+    .lede { color: var(--muted); margin-bottom: 1.5rem; }
+    a { color: var(--accent); }
+    form {
+      background: var(--card);
+      border: 1px solid #2b3b50;
+      border-radius: 16px;
+      padding: 1.25rem;
+      display: grid;
+      gap: .9rem;
+    }
+    label { font-size: .85rem; color: var(--muted); display: block; margin-bottom: .3rem; }
+    input[type=text], input[type=number] {
+      width: 100%;
+      padding: .7rem .8rem;
+      border-radius: 10px;
+      border: 1px solid #33455c;
+      background: #101821;
+      color: var(--ink);
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .row > * { flex: 1; min-width: 140px; }
+    .checks { display: flex; gap: 1rem; flex-wrap: wrap; }
+    button {
+      background: var(--accent);
+      color: #081018;
+      border: 0;
+      border-radius: 999px;
+      padding: .75rem 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .error { background: #3a1c1c; color: #ffb4b4; padding: .8rem 1rem; border-radius: 10px; }
+    .job {
+      background: var(--card);
+      border: 1px solid #2b3b50;
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      margin-top: 1rem;
+    }
+    .job h2 { margin: 0 0 .2rem; font-size: 1.1rem; }
+    .meta { color: var(--muted); font-size: .9rem; }
+    .score {
+      float: right;
+      background: #10261c;
+      color: var(--good);
+      border-radius: 999px;
+      padding: .15rem .7rem;
+      font-weight: 700;
+    }
+    .pill {
+      display: inline-block;
+      background: #243246;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: .1rem .55rem;
+      font-size: .75rem;
+      margin-right: .3rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Job-finder</h1>
+    <p class="lede">
+      Search public job boards and rank listings with
+      <a href="{{ model_url }}">{{ model_id }}</a>.
+    </p>
+
+    <form method="post" action="{{ url_for('search') }}">
+      <div>
+        <label for="query">Role or keywords</label>
+        <input id="query" name="query" type="text" required
+               value="{{ query }}" placeholder="python backend intern">
+      </div>
+      <div class="row">
+        <div>
+          <label for="limit">Max results</label>
+          <input id="limit" name="limit" type="number" min="1" max="50" value="20">
+        </div>
+        <div>
+          <label>Boards</label>
+          <div class="checks">
+            {% for source in sources %}
+            <label>
+              <input type="checkbox" name="sources" value="{{ source }}"
+                     {% if source in selected_sources|default(sources) %}checked{% endif %}>
+              {{ source }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <label>
+        <input type="checkbox" name="affine" {% if used_affine %}checked{% endif %}>
+        Re-rank with Affine-S6
+      </label>
+      <button type="submit">Find jobs</button>
+    </form>
+
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+
+    {% if results is not none %}
+      <p class="lede" style="margin-top:1.5rem">
+        {{ results|length }} matches
+        {% if used_affine %} · ranked by Affine-S6{% else %} · keyword score{% endif %}
+        {% if profile.name %} · profile {{ profile.name }}{% endif %}
+      </p>
+      {% for item in results %}
+        <article class="job">
+          <span class="score">{{ item.score|int }}</span>
+          <h2>{{ item.job.title }}</h2>
+          <p class="meta">{{ item.job.company }} · {{ item.job.location }} · {{ item.job.source }}</p>
+          {% if item.job.url %}
+            <p><a href="{{ item.job.url }}" target="_blank" rel="noopener">Open listing</a></p>
+          {% endif %}
+          {% if item.summary %}<p>{{ item.summary }}</p>{% endif %}
+          {% for reason in item.reasons %}<span class="pill">{{ reason }}</span>{% endfor %}
+        </article>
+      {% endfor %}
+      {% if results|length == 0 %}
+        <p class="lede">No listings matched that query. Try broader keywords.</p>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

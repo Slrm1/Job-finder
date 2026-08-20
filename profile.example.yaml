@@ -1,0 +1,26 @@
+# Copy to profile.yaml and fill in your details.
+# Affine-S6 uses this to rank jobs and write fit notes.
+
+name: Ada Lovelace
+headline: New-grad software engineer interested in backend, ML, and developer tools
+location: Washington, DC
+remote_ok: true
+experience_level: entry
+skills:
+  - Python
+  - JavaScript
+  - SQL
+  - Git
+  - REST APIs
+  - Linux
+keywords:
+  - software engineer
+  - backend
+  - machine learning
+  - internship
+avoid:
+  - unpaid
+  - crypto trading
+notes: >
+  Looking for internships or new-grad roles. Prefer Python backends,
+  data/ML adjacent work, or developer tooling. Open to remote.
