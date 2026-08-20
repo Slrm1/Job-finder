@@ -5,6 +5,54 @@ from pathlib import Path
 
 from src.model import ModelResponse, create_model
 
+SKILL_TERMS = [
+    "python",
+    "pytorch",
+    "hugging face",
+    "huggingface",
+    "transformers",
+    "lora",
+    "modernbert",
+    "nlp",
+    "rag",
+    "multi-agent",
+    "multi agent",
+    "ocr",
+    "sql",
+    "postgresql",
+    "rest",
+    "api",
+    "react",
+    "node.js",
+    "nodejs",
+    "javascript",
+    "typescript",
+    "aws",
+    "s3",
+    "ec2",
+    "git",
+    "agile",
+    "ci/cd",
+    "unity",
+    "c#",
+    "vr",
+    "behavior-tree",
+    "behavior tree",
+    "deep learning",
+    "machine learning",
+    "dataset",
+    "fine-tun",
+    "guardrail",
+    "ontology",
+    "full-stack",
+    "fullstack",
+    "javascript",
+    "java",
+    "bash",
+    "html",
+    "css",
+]
+
 SAMPLE_JOBS_PATH = Path(__file__).resolve().parent.parent / "sample_jobs.json"
 
 
@@ -83,12 +131,45 @@ def _parse_matches(response: ModelResponse, jobs: list[Job]) -> list[JobMatch]:
     return sorted(matches, key=lambda m: m.score, reverse=True)
 
 
+def _offline_score(resume: str, job: Job) -> JobMatch:
+    haystack = f"{job.title} {job.company} {job.location} {job.description}".lower()
+    resume_l = resume.lower()
+    resume_hits = {term for term in SKILL_TERMS if term in resume_l}
+    job_hits = {term for term in SKILL_TERMS if term in haystack}
+    overlap = resume_hits & job_hits
+    union = resume_hits | job_hits
+    jaccard = (len(overlap) / len(union)) if union else 0.0
+    coverage = (len(overlap) / len(job_hits)) if job_hits else 0.0
+    score = round(100 * (0.55 * coverage + 0.45 * jaccard), 1)
+
+    if overlap:
+        skills = ", ".join(sorted(overlap))
+        reasoning = f"Shared signals: {skills}."
+    else:
+        reasoning = "Little keyword overlap with the listed requirements."
+
+    gaps = sorted(job_hits - resume_hits)
+    if gaps:
+        reasoning += f" Gaps vs listing: {', '.join(gaps[:6])}."
+
+    return JobMatch(job=job, score=score, reasoning=reasoning)
+
+
+def match_jobs_offline(resume: str, jobs: list[Job] | None = None) -> list[JobMatch]:
+    job_list = jobs or load_jobs()
+    matches = [_offline_score(resume, job) for job in job_list]
+    return sorted(matches, key=lambda m: m.score, reverse=True)
+
+
 def find_matching_jobs(
     resume: str,
     jobs: list[Job] | None = None,
     use_api: bool = False,
-) -> tuple[list[JobMatch], ModelResponse]:
+    offline: bool = False,
+) -> tuple[list[JobMatch], ModelResponse | None]:
     job_list = jobs or load_jobs()
+    if offline:
+        return match_jobs_offline(resume, job_list), None
     model = create_model(use_api=use_api)
     messages = _build_match_prompt(resume, job_list)
     response = model.generate(messages)

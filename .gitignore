@@ -4,3 +4,6 @@ __pycache__/
 .env
 *.safetensors
 models/
+data/resume.pdf
+data/resume.txt
+data/*.pdf

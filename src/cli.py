@@ -7,22 +7,31 @@ import sys
 from pathlib import Path
 
 from src.config import get_model_id
-from src.job_finder import analyze_single_job, find_matching_jobs, load_jobs
+from src.job_finder import analyze_single_job, find_matching_jobs, load_jobs, match_jobs_offline
+from src.resume import load_resume
+
+DEFAULT_RESUME = Path(__file__).resolve().parent.parent / "data" / "resume.pdf"
+
+
+def _read_resume(args: argparse.Namespace) -> str:
+    if args.resume_file:
+        return load_resume(args.resume_file)
+    if args.resume.strip():
+        return args.resume
+    if DEFAULT_RESUME.exists():
+        return load_resume(DEFAULT_RESUME)
+    raise SystemExit("Error: provide --resume, --resume-file, or place a PDF at data/resume.pdf")
 
 
 def cmd_match(args: argparse.Namespace) -> int:
-    resume = args.resume
-    if args.resume_file:
-        resume = Path(args.resume_file).read_text()
-
-    if not resume.strip():
-        print("Error: provide --resume or --resume-file", file=sys.stderr)
-        return 1
-
+    resume = _read_resume(args)
     jobs = load_jobs(Path(args.jobs)) if args.jobs else None
-    matches, response = find_matching_jobs(resume, jobs=jobs, use_api=args.api)
+    matches, response = find_matching_jobs(
+        resume, jobs=jobs, use_api=args.api, offline=args.offline
+    )
 
-    print(f"Model: {get_model_id()}\n")
+    scorer = "offline keyword overlap" if args.offline else get_model_id()
+    print(f"Scorer: {scorer}\n")
     print("=" * 60)
     print("TOP JOB MATCHES")
     print("=" * 60)
@@ -33,7 +42,7 @@ def cmd_match(args: argparse.Namespace) -> int:
         print(f"   Fit Score: {match.score}/100")
         print(f"   {match.reasoning}")
 
-    if args.verbose and response.thinking:
+    if args.verbose and response and response.thinking:
         print("\n" + "=" * 60)
         print("MODEL REASONING")
         print("=" * 60)
@@ -56,15 +65,21 @@ def cmd_match(args: argparse.Namespace) -> int:
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
-    resume = args.resume
-    if args.resume_file:
-        resume = Path(args.resume_file).read_text()
+    resume = _read_resume(args)
 
     jobs = load_jobs(Path(args.jobs)) if args.jobs else load_jobs()
     job = next((j for j in jobs if j.title.lower() == args.job.lower()), None)
     if not job:
         print(f"Error: job '{args.job}' not found", file=sys.stderr)
         return 1
+
+    if args.offline:
+        match = match_jobs_offline(resume, [job])[0]
+        print("Scorer: offline keyword overlap\n")
+        print(f"Analysis for: {job.title} at {job.company}")
+        print(f"Fit Score: {match.score}/100")
+        print(match.reasoning)
+        return 0
 
     response = analyze_single_job(resume, job, use_api=args.api)
     print(f"Model: {get_model_id()}\n")
@@ -102,6 +117,11 @@ def main() -> int:
     match.add_argument("--jobs", help="Path to jobs JSON file")
     match.add_argument("--json", action="store_true", help="Output JSON")
     match.add_argument("--verbose", action="store_true", help="Show model thinking")
+    match.add_argument(
+        "--offline",
+        action="store_true",
+        help="Score jobs with keyword overlap (no model download)",
+    )
     match.set_defaults(func=cmd_match)
 
     analyze = sub.add_parser("analyze", help="Analyze fit for a single job")
@@ -110,6 +130,11 @@ def main() -> int:
     analyze.add_argument("--job", required=True, help="Job title to analyze")
     analyze.add_argument("--jobs", help="Path to jobs JSON file")
     analyze.add_argument("--verbose", action="store_true", help="Show model thinking")
+    analyze.add_argument(
+        "--offline",
+        action="store_true",
+        help="Score this job with keyword overlap (no model download)",
+    )
     analyze.set_defaults(func=cmd_analyze)
 
     listing = sub.add_parser("list", help="List available jobs")

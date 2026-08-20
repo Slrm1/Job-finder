@@ -1,32 +1,62 @@
 [
   {
-    "title": "Machine Learning Engineer",
-    "company": "TechCorp",
+    "title": "Junior AI / NLP Engineer",
+    "company": "Applied Language Labs",
+    "location": "Remote / Washington, DC",
+    "description": "Build and evaluate transformer models for multilingual NLP. PyTorch, Hugging Face, LoRA/PEFT, dataset pipelines, and benchmark reporting (F1, bias analysis). Python required; research-to-production experience a plus."
+  },
+  {
+    "title": "AI Software Engineer Intern (Multi-Agent / RAG)",
+    "company": "Federal AI Systems",
+    "location": "McLean, VA",
+    "description": "Design multi-agent workflows with RAG, OCR, SQL tool-use, and output guardrails for government clients. Python, REST APIs, PostgreSQL, and production LLM pipelines. Security-conscious engineering expected."
+  },
+  {
+    "title": "Full-Stack Software Engineer (New Grad / Junior)",
+    "company": "Capital Tech Partners",
+    "location": "Washington, DC / Hybrid",
+    "description": "Ship full-stack features with React, Node.js/TypeScript, REST APIs, and PostgreSQL. Deploy on AWS (S3, EC2). Testing, CI/CD, and Agile collaboration required."
+  },
+  {
+    "title": "Machine Learning Engineer Intern",
+    "company": "HealthSignal AI",
     "location": "Remote",
-    "description": "Build and deploy ML models. Experience with PyTorch, transformers, and LLM fine-tuning required. Python 3.11+."
+    "description": "Train and deploy classification models on real-time data. PyTorch, data preprocessing, evaluation, and presenting results to technical and non-technical stakeholders. Healthcare or applied ML project experience preferred."
   },
   {
-    "title": "Data Analyst",
-    "company": "FinanceHub",
-    "location": "New York, NY",
-    "description": "Analyze financial datasets, create dashboards in Tableau, and present insights to stakeholders. SQL and Excel required."
+    "title": "Backend Software Engineer Intern",
+    "company": "DispatchWorks",
+    "location": "Remote / Bowie, MD",
+    "description": "Build Python/Node APIs and real-time data aggregation services. SQL, schema validation, AWS deployment, and documented system architecture. Interest in operational decision-support systems is a plus."
   },
   {
-    "title": "Software Engineer - Backend",
-    "company": "StartupXYZ",
-    "location": "San Francisco, CA",
-    "description": "Design scalable APIs with Python/FastAPI. Experience with cloud infrastructure (AWS/GCP) and Docker preferred."
+    "title": "NLP Research Intern",
+    "company": "Howard / Academic Lab Partnership",
+    "location": "Washington, DC",
+    "description": "Continue multilingual NLP research: dataset construction, transformer fine-tuning (ModernBERT, LoRA), cross-lingual evaluation, and paper-style writeups. Strong Python and Git/Agile collaboration."
   },
   {
-    "title": "AI Research Intern",
-    "company": "ResearchLab",
+    "title": "Federal Consulting Technologist Intern",
+    "company": "GovTech Consulting",
+    "location": "McLean / DC Metro",
+    "description": "Support U.S. federal clients with practical AI workflows, semantic/ontology modeling, SQL across multiple databases, and stakeholder communication. Full-stack delivery and intern program experience valued."
+  },
+  {
+    "title": "Unity / Simulation Engineer Intern",
+    "company": "Immersive Studios",
     "location": "Remote",
-    "description": "Assist with NLP research projects. Familiarity with Hugging Face, PyTorch, and academic paper reading required."
+    "description": "Build VR/simulation experiences in Unity (C#) with custom AI (behavior trees) and physics interactions. Game jam or shipped prototype experience preferred."
   },
   {
-    "title": "DevOps Engineer",
+    "title": "Data Analyst Intern",
+    "company": "Metro Insights",
+    "location": "New York, NY / Remote",
+    "description": "Analyze datasets, write SQL, build dashboards, and present insights to non-technical leadership. Excel/Tableau preferred; Python data processing is acceptable."
+  },
+  {
+    "title": "DevOps / Cloud Engineer Intern",
     "company": "CloudScale",
-    "location": "Austin, TX",
-    "description": "Manage CI/CD pipelines, Kubernetes clusters, and infrastructure as code with Terraform."
+    "location": "Austin, TX / Remote",
+    "description": "CI/CD, AWS infrastructure, Docker/Kubernetes, Terraform. Some Git and cloud deploy experience expected; deep infra-as-code is the core of the role."
   }
 ]
