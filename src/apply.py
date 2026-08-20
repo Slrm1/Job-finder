@@ -12,6 +12,7 @@ from pathlib import Path
 
 from src.config import load_config
 from src.cover_letter import extract_candidate, generate_cover_letter, generate_cover_letter_with_model
+from src.humanizer import humanize_text
 from src.job_finder import Job, JobMatch, find_matching_jobs
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +47,7 @@ def apply_to_jobs(
     offline: bool = True,
     use_api: bool = False,
     force: bool = False,
+    humanize: bool = True,
 ) -> list[ApplicationResult]:
     config = load_config().get("apply", {})
     threshold = min_score if min_score is not None else float(config.get("min_score", 60))
@@ -78,6 +80,7 @@ def apply_to_jobs(
                 open_urls=open_urls,
                 offline=offline,
                 use_api=use_api,
+                humanize=humanize,
             )
         )
         if send:
@@ -108,6 +111,7 @@ def _apply_one(
     open_urls: bool,
     offline: bool,
     use_api: bool,
+    humanize: bool,
 ) -> ApplicationResult:
     job = match.job
     if offline:
@@ -115,9 +119,15 @@ def _apply_one(
     else:
         letter = generate_cover_letter_with_model(resume, job, use_api=use_api)
 
-    packet_dir = _write_packet(job, letter, match)
+    raw_letter = letter
+    if humanize:
+        letter = humanize_text(letter)
+
+    packet_dir = _write_packet(job, letter, match, raw_letter=raw_letter if humanize else None)
     methods = []
     details = [f"Packet saved to {packet_dir}"]
+    if humanize:
+        details.append("Cover letter humanized.")
     status = "draft"
 
     if job.apply_email:
@@ -157,11 +167,18 @@ def _apply_one(
     )
 
 
-def _write_packet(job: Job, letter: str, match: JobMatch) -> Path:
+def _write_packet(
+    job: Job,
+    letter: str,
+    match: JobMatch,
+    raw_letter: str | None = None,
+) -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     packet_dir = OUTBOX_DIR / f"{stamp}-{job.slug}"
     packet_dir.mkdir(parents=True, exist_ok=True)
     (packet_dir / "cover_letter.txt").write_text(letter, encoding="utf-8")
+    if raw_letter and raw_letter.strip() != letter.strip():
+        (packet_dir / "cover_letter.raw.txt").write_text(raw_letter, encoding="utf-8")
     (packet_dir / "job.json").write_text(
         json.dumps(
             {

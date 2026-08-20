@@ -139,6 +139,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
             offline=args.offline,
             use_api=args.api,
             force=args.force,
+            humanize=args.humanize,
         )
     else:
         results = apply_to_jobs(
@@ -152,6 +153,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
             offline=args.offline,
             use_api=args.api,
             force=args.force,
+            humanize=args.humanize,
         )
 
     mode = "SEND" if args.send else "DRY RUN"
@@ -179,6 +181,29 @@ def cmd_applications(args: argparse.Namespace) -> int:
         )
         if args.verbose:
             print(f"  {item.get('detail')}")
+    return 0
+
+
+def cmd_humanize(args: argparse.Namespace) -> int:
+    from src.humanizer import HumanizerUnavailable, fallback_humanize, humanize_text
+
+    if args.file:
+        text = Path(args.file).read_text(encoding="utf-8")
+    else:
+        text = args.text
+    if not text.strip():
+        print("Error: provide --text or --file", file=sys.stderr)
+        return 1
+
+    if args.fallback_only:
+        print(fallback_humanize(text), end="")
+        return 0
+
+    try:
+        print(humanize_text(text, allow_fallback=False), end="")
+    except HumanizerUnavailable as exc:
+        print(f"GGUF humanizer unavailable ({exc}); using fallback.\n", file=sys.stderr)
+        print(fallback_humanize(text), end="")
     return 0
 
 
@@ -247,11 +272,30 @@ def main() -> int:
         help="Open apply_url pages in your browser",
     )
     apply.add_argument("--force", action="store_true", help="Re-apply even if already sent")
+    apply.add_argument(
+        "--humanize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Rewrite cover letters with Ai-Humanizer-Llama-3.2-3B-GGUF (default on)",
+    )
     apply.set_defaults(func=cmd_apply)
 
     history = sub.add_parser("applications", help="Show application history")
     history.add_argument("--verbose", action="store_true", help="Show packet paths and send details")
     history.set_defaults(func=cmd_applications)
+
+    humanize = sub.add_parser(
+        "humanize",
+        help="Rewrite text with mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF",
+    )
+    humanize.add_argument("--text", default="", help="Text to rewrite")
+    humanize.add_argument("--file", help="Path to a text file (cover letter, etc.)")
+    humanize.add_argument(
+        "--fallback-only",
+        action="store_true",
+        help="Skip the GGUF model and use the lightweight rewriter",
+    )
+    humanize.set_defaults(func=cmd_humanize)
 
     args = parser.parse_args()
     return args.func(args)

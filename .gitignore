@@ -4,6 +4,7 @@ __pycache__/
 .env
 *.safetensors
 models/
+*.gguf
 data/resume.pdf
 data/resume.txt
 data/*.pdf
