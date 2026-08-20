@@ -117,7 +117,7 @@ class RankedJob:
         return payload
 
 
-def keyword_score(job: Job, profile: Profile) -> RankedJob:
+def keyword_score(job: Job, profile: Profile, query: str = "") -> RankedJob:
     blob = job.blob().lower()
     reasons: list[str] = []
     hits = 0
@@ -139,6 +139,15 @@ def keyword_score(job: Job, profile: Profile) -> RankedJob:
     if job.title and any(k.lower() in job.title.lower() for k in profile.keywords):
         score = min(100.0, score + 10)
         reasons.append("Title matches a target keyword")
+    query_terms = [
+        token
+        for token in re.findall(r"[a-zA-Z][a-zA-Z0-9+#./-]{1,}", query.lower())
+        if token not in STOPWORDS
+    ]
+    title_hits = [term for term in query_terms if term in (job.title or "").lower()]
+    if title_hits:
+        score = min(100.0, score + 15)
+        reasons.append("Title matches search terms")
     if profile.remote_ok and "remote" in (job.location or "").lower():
         score = min(100.0, score + 5)
         reasons.append("Remote-friendly location")
@@ -166,8 +175,8 @@ def keyword_score(job: Job, profile: Profile) -> RankedJob:
     )
 
 
-def rank_jobs(jobs: list[Job], profile: Profile) -> list[RankedJob]:
-    ranked = [keyword_score(job, profile) for job in jobs]
+def rank_jobs(jobs: list[Job], profile: Profile, query: str = "") -> list[RankedJob]:
+    ranked = [keyword_score(job, profile, query=query) for job in jobs]
     ranked.sort(key=lambda item: item.score, reverse=True)
     return ranked
 
@@ -210,12 +219,13 @@ def rank_jobs_with_affine(
     *,
     generate_json=None,
     limit: int = 8,
+    query: str = "",
 ) -> list[RankedJob]:
     """Rank a shortlist with Affine-S6. Falls back to keyword scores on errors."""
     if generate_json is None:
         from jobfinder.affine import generate_json as generate_json
 
-    shortlist = rank_jobs(jobs, profile)[:limit]
+    shortlist = rank_jobs(jobs, profile, query=query)[:limit]
     ranked: list[RankedJob] = []
     for item in shortlist:
         try:

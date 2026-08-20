@@ -31,9 +31,10 @@ def test_keyword_score_rewards_skills_and_penalizes_avoid():
         avoid=["crypto trading"],
         remote_ok=True,
     )
-    ranked = keyword_score(_job(), profile)
+    ranked = keyword_score(_job(), profile, query="python intern")
     assert ranked.score > 0
     assert any("Python" in reason for reason in ranked.reasons)
+    assert any("search" in reason.lower() for reason in ranked.reasons)
     assert any("avoided" in reason.lower() for reason in ranked.reasons)
     assert "Go" in ranked.missing_skills
 

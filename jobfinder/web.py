@@ -56,9 +56,11 @@ def create_app(profile_path: str | None = None) -> Flask:
             try:
                 jobs = search_jobs(query, sources=selected, limit=limit)
                 if use_affine:
-                    ranked = rank_jobs_with_affine(jobs, profile, limit=min(limit, 8))
+                    ranked = rank_jobs_with_affine(
+                        jobs, profile, limit=min(limit, 8), query=query
+                    )
                 else:
-                    ranked = rank_jobs(jobs, profile)
+                    ranked = rank_jobs(jobs, profile, query=query)
             except Exception as exc:
                 error = str(exc)
         return render_template(

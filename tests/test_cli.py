@@ -63,7 +63,9 @@ def test_web_index_and_search(monkeypatch):
     assert b"WebScraper991923/Affine-S6" in home.data
 
     ranked = RankedJob(job=job, score=90, summary="Good intern fit", method="keywords")
-    monkeypatch.setattr("jobfinder.web.rank_jobs", lambda jobs, profile: [ranked])
+    monkeypatch.setattr(
+        "jobfinder.web.rank_jobs", lambda jobs, profile, query="": [ranked]
+    )
     response = client.post("/search", data={"query": "python intern", "limit": "10"})
     assert response.status_code == 200
     assert b"Python Intern" in response.data

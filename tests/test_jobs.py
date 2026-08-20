@@ -1,4 +1,11 @@
-from jobfinder.jobs import Job, fetch_arbeitnow, fetch_remoteok, fetch_remotive, search_jobs
+from jobfinder.jobs import (
+    SOURCES,
+    Job,
+    fetch_arbeitnow,
+    fetch_remoteok,
+    fetch_remotive,
+    search_jobs,
+)
 
 
 def _remotive_payload():
@@ -77,6 +84,22 @@ def test_fetch_arbeitnow_filters_query(monkeypatch):
     assert [job.title for job in jobs] == ["Python Intern"]
 
 
+def test_matches_query_requires_a_token():
+    from jobfinder.jobs import _matches_query
+
+    assert _matches_query("python intern", "Python Backend Engineer")
+    assert _matches_query("python intern", "Summer internship in Python")
+    assert not _matches_query("python intern", "Patient Care Specialist")
+    assert not _matches_query("python intern", "Internal communications lead")
+    assert not _matches_query(
+        "python intern",
+        "Senior Graphic Designer",
+        "Lemon.io",
+        "marketplace for python and java engineers",
+        [".net", "python", "java", "react"] * 4,
+    )
+
+
 def test_fetch_remoteok_skips_metadata(monkeypatch):
     payload = [
         {"last_updated": 1},
@@ -112,9 +135,10 @@ def test_search_jobs_dedupes(monkeypatch):
         source="remotive",
     )
 
-    monkeypatch.setattr("jobfinder.jobs.fetch_remotive", lambda q, limit: [job])
-    monkeypatch.setattr(
-        "jobfinder.jobs.fetch_arbeitnow",
+    monkeypatch.setitem(SOURCES, "remotive", lambda q, limit: [job])
+    monkeypatch.setitem(
+        SOURCES,
+        "arbeitnow",
         lambda q, limit: [
             Job(
                 id="b",
@@ -127,6 +151,32 @@ def test_search_jobs_dedupes(monkeypatch):
             )
         ],
     )
-    monkeypatch.setattr("jobfinder.jobs.fetch_remoteok", lambda q, limit: [])
+    monkeypatch.setitem(SOURCES, "remoteok", lambda q, limit: [])
     results = search_jobs("python", limit=10)
     assert len(results) == 1
+
+
+def test_search_jobs_prefers_query_overlap(monkeypatch):
+    python_job = Job(
+        id="p",
+        title="Python Intern",
+        company="Acme",
+        location="Remote",
+        url="https://example.com/python",
+        description="Python internship",
+        source="remotive",
+    )
+    other = Job(
+        id="g",
+        title="Gardener",
+        company="Parks",
+        location="Remote",
+        url="https://example.com/garden",
+        description="plants",
+        source="remotive",
+    )
+    monkeypatch.setitem(SOURCES, "remotive", lambda q, limit: [other, python_job])
+    monkeypatch.setitem(SOURCES, "arbeitnow", lambda q, limit: [])
+    monkeypatch.setitem(SOURCES, "remoteok", lambda q, limit: [])
+    results = search_jobs("python intern", limit=10)
+    assert results[0].title == "Python Intern"

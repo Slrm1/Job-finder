@@ -70,9 +70,11 @@ def cmd_search(args: argparse.Namespace) -> int:
     )
     profile = _load_profile(args.profile)
     if args.affine:
-        ranked = rank_jobs_with_affine(jobs, profile, limit=min(args.limit, 8))
+        ranked = rank_jobs_with_affine(
+            jobs, profile, limit=min(args.limit, 8), query=args.query
+        )
     else:
-        ranked = rank_jobs(jobs, profile)
+        ranked = rank_jobs(jobs, profile, query=args.query)
     _print_jobs(ranked, show_summary=bool(args.affine or args.verbose))
     console.print(f"\n{len(ranked)} jobs from public boards. Model: {AFFINE_S6_MODEL_ID}")
     return 0

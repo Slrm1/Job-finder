@@ -57,6 +57,45 @@ def _strip_html(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _tokens(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9+#./-]{2,}", text.lower())
+        if token not in {"and", "the", "for"}
+    }
+
+
+def _expand_job_terms(tokens: set[str]) -> set[str]:
+    expanded = set(tokens)
+    if "intern" in tokens or "interns" in tokens:
+        expanded.update({"intern", "interns", "internship"})
+    if "internship" in tokens:
+        expanded.update({"intern", "internship"})
+    return expanded
+
+
+def _matches_query(
+    query: str,
+    title: str,
+    company: str = "",
+    description: str = "",
+    tags: list[str] | None = None,
+) -> bool:
+    raw = _tokens(query)
+    if not raw:
+        return True
+    expanded = _expand_job_terms(raw)
+    title_hay = _expand_job_terms(_tokens(f"{title} {company}"))
+    if expanded & title_hay:
+        return True
+    tag_text = " ".join(tags or []) if tags is not None and len(tags) <= 12 else ""
+    body_hay = _expand_job_terms(_tokens(f"{description} {tag_text}"))
+    hits = sum(1 for token in raw if _expand_job_terms({token}) & body_hay)
+    if len(raw) >= 2:
+        return hits >= 2
+    return hits >= 1
+
+
 def _job_id(*parts: str) -> str:
     raw = "|".join(parts)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
@@ -71,16 +110,22 @@ def fetch_remotive(query: str, limit: int = 25) -> list[Job]:
     response.raise_for_status()
     jobs: list[Job] = []
     for item in response.json().get("jobs", []):
+        title = item.get("title") or "Untitled"
+        company = item.get("company_name") or "Unknown"
+        description = _strip_html(item.get("description") or "")
+        tags = list(item.get("tags") or [])
+        if not _matches_query(query, title, company, description, tags):
+            continue
         jobs.append(
             Job(
                 id=_job_id("remotive", str(item.get("id", item.get("url", "")))),
-                title=item.get("title") or "Untitled",
-                company=item.get("company_name") or "Unknown",
+                title=title,
+                company=company,
                 location=item.get("candidate_required_location") or "Remote",
                 url=item.get("url") or item.get("short_url") or "",
-                description=_strip_html(item.get("description") or ""),
+                description=description,
                 source="remotive",
-                tags=list(item.get("tags") or []),
+                tags=tags,
                 salary=item.get("salary") or None,
                 posted_at=item.get("publication_date"),
             )
@@ -95,15 +140,13 @@ def fetch_arbeitnow(query: str, limit: int = 25) -> list[Job]:
         "https://www.arbeitnow.com/api/job-board-api", timeout=TIMEOUT
     )
     response.raise_for_status()
-    needle = query.lower().strip()
     jobs: list[Job] = []
     for item in response.json().get("data", []):
         title = item.get("title") or "Untitled"
         company = item.get("company_name") or "Unknown"
         description = _strip_html(item.get("description") or "")
         tags = [str(t) for t in (item.get("tags") or [])]
-        haystack = f"{title} {company} {' '.join(tags)} {description}".lower()
-        if needle and needle not in haystack:
+        if not _matches_query(query, title, company, description, tags):
             continue
         location = item.get("location") or ("Remote" if item.get("remote") else "")
         jobs.append(
@@ -128,7 +171,6 @@ def fetch_remoteok(query: str, limit: int = 25) -> list[Job]:
     response = _session().get("https://remoteok.com/api", timeout=TIMEOUT)
     response.raise_for_status()
     payload = response.json()
-    needle = query.lower().strip()
     jobs: list[Job] = []
     for item in payload:
         if not isinstance(item, dict) or (
@@ -139,8 +181,7 @@ def fetch_remoteok(query: str, limit: int = 25) -> list[Job]:
         company = item.get("company") or "Unknown"
         description = _strip_html(item.get("description") or "")
         tags = [str(t) for t in (item.get("tags") or [])]
-        haystack = f"{title} {company} {' '.join(tags)} {description}".lower()
-        if needle and needle not in haystack:
+        if not _matches_query(query, title, company, description, tags):
             continue
         jobs.append(
             Job(
@@ -223,12 +264,19 @@ def search_jobs(
             continue
         seen.add(key)
         unique.append(job)
-        if len(unique) >= limit:
-            break
+
+    needles = _expand_job_terms(_tokens(query))
+    unique.sort(
+        key=lambda job: (
+            len(needles & _expand_job_terms(_tokens(job.title))),
+            len(needles & _expand_job_terms(_tokens(job.blob()))),
+        ),
+        reverse=True,
+    )
 
     if not unique and errors:
         raise RuntimeError("All job sources failed: " + "; ".join(errors))
-    return unique
+    return unique[:limit]
 
 
 def jobs_to_json(jobs: list[Job]) -> str:
