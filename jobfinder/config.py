@@ -29,6 +29,9 @@ HUMANIZER_API_KEY = os.getenv("HUMANIZER_API_KEY") or os.getenv("HF_TOKEN")
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_PROFILE_PATH = ROOT_DIR / "profile.yaml"
 DEFAULT_RESUME_PATH = ROOT_DIR / "resume.pdf"
+CACHE_DIR = Path(os.getenv("JOBFINDER_CACHE", str(ROOT_DIR / ".cache")))
+AFFINE_CACHE_DIR = CACHE_DIR / "affine-s6"
+HUMANIZER_CACHE_DIR = CACHE_DIR / "gguf"
 
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
 AFFINE_API_BASE = os.getenv("AFFINE_API_BASE") or os.getenv("OPENAI_BASE_URL")

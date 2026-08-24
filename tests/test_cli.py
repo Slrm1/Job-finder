@@ -26,6 +26,10 @@ def test_parser_dashboard_resume_pdf_and_mcp():
     assert pdf.template == "professional"
     assert parser.parse_args(["mcp"]).func.__name__ == "cmd_mcp"
     assert parser.parse_args(["keys", "--test", "--to", "ada@example.com"]).to == "ada@example.com"
+    download_args = parser.parse_args(["download", "--packages", "--skip-affine"])
+    assert download_args.packages is True
+    assert download_args.skip_affine is True
+    assert parser.parse_args(["download", "--status"]).status is True
     apply_args = parser.parse_args(["apply", "3", "--send", "--mark-applied"])
     assert apply_args.id == 3
     assert apply_args.send is True
@@ -63,6 +67,29 @@ def test_model_command(capsys):
     assert "huggingface.co/WebScraper991923/Affine-S6" in out
     assert "mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in out
     assert "Apply:" in out
+
+
+def test_download_status_command(capsys):
+    assert main(["download", "--status"]) == 0
+    out = capsys.readouterr().out
+    assert "Affine-S6" in out
+    assert "Humanizer" in out
+    assert "llama-cpp-python" in out
+    assert "torch" in out
+
+
+def test_download_command_uses_download_all(monkeypatch, capsys, tmp_path):
+    seen = {}
+
+    def fake_download_all(**kwargs):
+        seen.update(kwargs)
+        return {"affine": tmp_path / "affine-s6", "humanizer": tmp_path / "gguf"}
+
+    monkeypatch.setattr("jobfinder.download.download_all", fake_download_all)
+    assert main(["download", "--skip-humanizer"]) == 0
+    assert seen["affine"] is True
+    assert seen["humanizer"] is False
+    assert "affine" in capsys.readouterr().out
 
 
 def test_keys_command(capsys):

@@ -12,10 +12,10 @@ from jobfinder.config import (
     HUMANIZER_API_BASE,
     HUMANIZER_API_KEY,
     HUMANIZER_BACKEND,
+    HUMANIZER_CACHE_DIR,
     HUMANIZER_GGUF_FILE,
     HUMANIZER_MODEL_ID,
     HUMANIZER_URL,
-    ROOT_DIR,
 )
 
 SYSTEM_PROMPT = (
@@ -148,19 +148,18 @@ def ensure_gguf(filename: str | None = None) -> Path:
     from huggingface_hub import hf_hub_download
 
     name = filename or HUMANIZER_GGUF_FILE
-    cache = ROOT_DIR / ".cache" / "gguf"
-    cache.mkdir(parents=True, exist_ok=True)
+    HUMANIZER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = hf_hub_download(
         repo_id=HUMANIZER_MODEL_ID,
         filename=name,
-        token=HF_TOKEN,
-        local_dir=str(cache),
+        token=HF_TOKEN or None,
+        local_dir=str(HUMANIZER_CACHE_DIR),
     )
     return Path(path)
 
 
 def _gguf_ready() -> bool:
-    cached = ROOT_DIR / ".cache" / "gguf" / HUMANIZER_GGUF_FILE
+    cached = HUMANIZER_CACHE_DIR / HUMANIZER_GGUF_FILE
     if cached.is_file():
         try:
             import llama_cpp  # noqa: F401

@@ -37,6 +37,16 @@ jobfinder serve
 
 Then open http://127.0.0.1:5000 and upload your resume.
 
+Download the local models (Affine-S6 ~8 GB and the humanizer GGUF ~2.1 GB):
+
+```bash
+pip install -e '.[ml,humanizer]'
+jobfinder download
+jobfinder download --status
+```
+
+Weights land in `.cache/` (gitignored). Keyword ranking still works without them.
+
 Re-rank the shortlist with Affine-S6 (needs one of the backends below):
 
 ```bash
@@ -56,10 +66,11 @@ Pick a backend with `AFFINE_BACKEND` (`auto`, `huggingface`, `openai`, or `local
 
 1. **Hugging Face Inference** — set `HF_TOKEN` in `.env`.
 2. **OpenAI-compatible server** — serve the same repo with vLLM or SGLang and set `AFFINE_API_BASE`.
-3. **Local transformers** — install ML extras and let Hugging Face download the weights:
+3. **Local transformers** — install ML extras and download the weights:
 
 ```bash
 pip install -e '.[ml]'
+jobfinder download --skip-humanizer
 ```
 
 Local CPU inference needs several GB of RAM. A GPU or a remote endpoint is strongly preferred.
@@ -88,10 +99,11 @@ Without GGUF weights, a small heuristic rewriter still strips common AI phrasing
 
 ```bash
 pip install -e '.[humanizer]'
+jobfinder download --skip-affine
 HUMANIZER_BACKEND=gguf jobfinder humanize "Paste AI text here."
 ```
 
-That downloads `Ai-Humanizer-Llama-3.2-3B.Q4_K_M.gguf` into `.cache/gguf/` on first use. You can point `HUMANIZER_API_BASE` at any OpenAI-compatible server that hosts the same model.
+That stores `Ai-Humanizer-Llama-3.2-3B.Q4_K_M.gguf` in `.cache/gguf/`. You can point `HUMANIZER_API_BASE` at any OpenAI-compatible server that hosts the same model.
 
 ## Job sources
 

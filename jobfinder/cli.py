@@ -376,6 +376,41 @@ def cmd_model(_: argparse.Namespace) -> int:
         "            greenhouse "
         + ("Job Board API key set" if greenhouse_ready() else "no board API key")
     )
+    from jobfinder.download import cache_status
+
+    for item in cache_status()[:2]:
+        console.print(f"Cache:      {item.name}: {item.detail}")
+    return 0
+
+
+def cmd_download(args: argparse.Namespace) -> int:
+    from jobfinder.download import cache_status, download_all
+
+    def _print_status() -> None:
+        table = Table(title="Local model cache")
+        table.add_column("Asset")
+        table.add_column("Status")
+        table.add_column("Path")
+        for item in cache_status():
+            table.add_row(item.name, item.detail, str(item.path))
+        console.print(table)
+
+    if args.status:
+        _print_status()
+        return 0
+    console.print("Downloading Affine-S6 and/or the humanizer GGUF into .cache/ …")
+    try:
+        results = download_all(
+            affine=not args.skip_affine,
+            humanizer=not args.skip_humanizer,
+            packages=args.packages,
+        )
+    except Exception as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+    for name, path in results.items():
+        console.print(f"[green]{name}: {path}[/green]")
+    _print_status()
     return 0
 
 
@@ -612,6 +647,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     model = sub.add_parser("model", help="Show the configured Affine-S6 model")
     model.set_defaults(func=cmd_model)
+
+    download = sub.add_parser(
+        "download",
+        help="Download Affine-S6 weights and the humanizer GGUF",
+    )
+    download.add_argument(
+        "--status",
+        action="store_true",
+        help="Show what is already cached without downloading",
+    )
+    download.add_argument(
+        "--packages",
+        action="store_true",
+        help="Also pip install the [ml] and [humanizer] extras",
+    )
+    download.add_argument(
+        "--skip-affine",
+        action="store_true",
+        help="Do not fetch Affine-S6 (~8 GB)",
+    )
+    download.add_argument(
+        "--skip-humanizer",
+        action="store_true",
+        help="Do not fetch the humanizer GGUF (~2.1 GB)",
+    )
+    download.set_defaults(func=cmd_download)
 
     keys = sub.add_parser("keys", help="Show apply API key status (no secrets printed)")
     keys.add_argument(

@@ -13,7 +13,6 @@ from jobfinder.config import (
     AFFINE_BACKEND,
     AFFINE_MODEL,
     AFFINE_S6_MODEL_ID,
-    AFFINE_S6_REVISION,
     DEFAULT_GENERATION,
     HF_TOKEN,
     THINK_END_TOKEN,
@@ -230,16 +229,19 @@ def _generate_local(
         ) from exc
 
     if _LOCAL_TOKENIZER is None or _LOCAL_MODEL is None:
-        _LOCAL_TOKENIZER = AutoTokenizer.from_pretrained(
-            AFFINE_S6_MODEL_ID, revision=AFFINE_S6_REVISION
-        )
-        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        _LOCAL_MODEL = AutoModelForCausalLM.from_pretrained(
-            AFFINE_S6_MODEL_ID,
-            revision=AFFINE_S6_REVISION,
-            torch_dtype=dtype,
-            device_map="auto",
-        )
+        from jobfinder.download import affine_model_source
+
+        model_id, revision = affine_model_source()
+        tok_kwargs: dict[str, Any] = {}
+        model_kwargs: dict[str, Any] = {
+            "torch_dtype": torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            "device_map": "auto",
+        }
+        if revision:
+            tok_kwargs["revision"] = revision
+            model_kwargs["revision"] = revision
+        _LOCAL_TOKENIZER = AutoTokenizer.from_pretrained(model_id, **tok_kwargs)
+        _LOCAL_MODEL = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
 
     tokenizer = _LOCAL_TOKENIZER
     model = _LOCAL_MODEL
