@@ -34,7 +34,7 @@
       gap: .9rem;
     }
     label { font-size: .85rem; color: var(--muted); display: block; margin-bottom: .3rem; }
-    input[type=text], input[type=number] {
+    input[type=text], input[type=number], input[type=file] {
       width: 100%;
       padding: .7rem .8rem;
       border-radius: 10px;
@@ -87,11 +87,21 @@
   <main>
     <h1>Job-finder</h1>
     <p class="lede">
-      Search public job boards and rank listings with
+      Drop in your resume, then search public job boards. Listings are ranked with
       <a href="{{ model_url }}">{{ model_id }}</a>.
     </p>
 
-    <form method="post" action="{{ url_for('search') }}">
+    <form method="post" action="{{ url_for('search') }}" enctype="multipart/form-data">
+      <div>
+        <label for="resume">Resume (.pdf, .txt, .md, .docx)</label>
+        <input id="resume" name="resume" type="file"
+               accept=".pdf,.txt,.md,.docx,.text,.markdown">
+        {% if profile.resume_text %}
+        <p class="meta">Using {{ profile.name or "your resume" }} · {{ profile.skills|length }} skills parsed</p>
+        {% else %}
+        <p class="meta">Optional. You can also save the file as <code>resume.pdf</code> in the project folder.</p>
+        {% endif %}
+      </div>
       <div>
         <label for="query">Role or keywords</label>
         <input id="query" name="query" type="text" required
@@ -130,7 +140,7 @@
       <p class="lede" style="margin-top:1.5rem">
         {{ results|length }} matches
         {% if used_affine %} · ranked by Affine-S6{% else %} · keyword score{% endif %}
-        {% if profile.name %} · profile {{ profile.name }}{% endif %}
+        {% if profile.resume_text %} · resume {{ profile.name or "uploaded" }}{% elif profile.name %} · profile {{ profile.name }}{% endif %}
       </p>
       {% for item in results %}
         <article class="job">

@@ -3,32 +3,33 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
 
 from rich.console import Console
 from rich.table import Table
 
-from jobfinder.config import AFFINE_S6_MODEL_ID, AFFINE_S6_URL, DEFAULT_PROFILE_PATH
+from jobfinder.config import AFFINE_S6_MODEL_ID, AFFINE_S6_URL
 from jobfinder.jobs import SOURCES, search_jobs
-from jobfinder.match import Profile, rank_jobs, rank_jobs_with_affine
+from jobfinder.match import rank_jobs, rank_jobs_with_affine
+from jobfinder.resume import resolve_profile
 
 console = Console()
 
 
-def _load_profile(path: str | None) -> Profile:
-    candidate = Path(path) if path else DEFAULT_PROFILE_PATH
-    if not candidate.exists():
-        example = candidate.with_name("profile.example.yaml")
-        if path:
-            raise FileNotFoundError(f"Profile not found: {candidate}")
-        if example.exists():
-            console.print(
-                f"[yellow]No profile.yaml found; using {example.name}[/yellow]"
-            )
-            return Profile.from_yaml(example)
-        return Profile()
-    return Profile.from_yaml(candidate)
+def _load_profile(args: argparse.Namespace):
+    return resolve_profile(
+        profile_path=getattr(args, "profile", None),
+        resume_path=getattr(args, "resume", None),
+    )
+
+
+def _describe_profile(profile) -> None:
+    origin = "resume" if profile.resume_text else "profile"
+    name = profile.name or "candidate"
+    skills = ", ".join(profile.skills[:8]) or "no skills parsed"
+    console.print(
+        f"[dim]Ranking {name} from {origin} · {len(profile.skills)} skills · {skills}[/dim]"
+    )
 
 
 def _print_jobs(ranked, *, show_summary: bool = True) -> None:
@@ -62,13 +63,23 @@ def _print_jobs(ranked, *, show_summary: bool = True) -> None:
                 console.print("  " + "; ".join(item.reasons))
 
 
+def _add_candidate_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--profile", help="Path to profile.yaml")
+    parser.add_argument(
+        "--resume",
+        help="Path to your resume (.pdf, .txt, .md, .docx). "
+        "Also auto-detects resume.pdf in this folder.",
+    )
+
+
 def cmd_search(args: argparse.Namespace) -> int:
     jobs = search_jobs(
         args.query,
         sources=args.sources.split(",") if args.sources else None,
         limit=args.limit,
     )
-    profile = _load_profile(args.profile)
+    profile = _load_profile(args)
+    _describe_profile(profile)
     if args.affine:
         ranked = rank_jobs_with_affine(
             jobs, profile, limit=min(args.limit, 8), query=args.query
@@ -83,6 +94,23 @@ def cmd_search(args: argparse.Namespace) -> int:
 def cmd_rank(args: argparse.Namespace) -> int:
     args.affine = True
     return cmd_search(args)
+
+
+def cmd_profile(args: argparse.Namespace) -> int:
+    profile = _load_profile(args)
+    _describe_profile(profile)
+    console.print(f"Headline: {profile.headline or '—'}")
+    console.print(f"Location: {profile.location or '—'}")
+    console.print(f"Level:    {profile.experience_level or '—'}")
+    console.print("Skills:   " + (", ".join(profile.skills) or "—"))
+    console.print("Keywords: " + (", ".join(profile.keywords) or "—"))
+    if profile.resume_text:
+        console.print(f"Resume:   {len(profile.resume_text)} characters loaded")
+    else:
+        console.print(
+            "[yellow]No resume loaded. Pass --resume PATH or drop resume.pdf here.[/yellow]"
+        )
+    return 0
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -100,7 +128,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 def cmd_serve(args: argparse.Namespace) -> int:
     from jobfinder.web import create_app
 
-    app = create_app(profile_path=args.profile)
+    app = create_app(profile_path=args.profile, resume_path=args.resume)
     console.print(f"Affine-S6 model: {AFFINE_S6_URL}")
     app.run(host=args.host, port=args.port, debug=args.debug)
     return 0
@@ -129,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--sources",
         help="Comma-separated sources: " + ",".join(SOURCES),
     )
-    search.add_argument("--profile", help="Path to profile.yaml")
+    _add_candidate_flags(search)
     search.add_argument(
         "--affine",
         action="store_true",
@@ -142,9 +170,13 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("query")
     rank.add_argument("--limit", type=int, default=10)
     rank.add_argument("--sources")
-    rank.add_argument("--profile")
+    _add_candidate_flags(rank)
     rank.add_argument("--verbose", action="store_true")
     rank.set_defaults(func=cmd_rank)
+
+    preview = sub.add_parser("profile", help="Show the profile parsed from your resume")
+    _add_candidate_flags(preview)
+    preview.set_defaults(func=cmd_profile)
 
     chat = sub.add_parser("chat", help="Ask Affine-S6 a question")
     chat.add_argument("prompt")
@@ -154,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", help="Run the web UI")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=5000)
-    serve.add_argument("--profile")
+    _add_candidate_flags(serve)
     serve.add_argument("--debug", action="store_true")
     serve.set_defaults(func=cmd_serve)
 

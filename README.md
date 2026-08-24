@@ -1,8 +1,29 @@
 # Job-finder
 
-Search public job boards and rank listings with **[Affine-S6](https://huggingface.co/WebScraper991923/Affine-S6)**.
+Search public job boards and rank listings against **your resume** using **[Affine-S6](https://huggingface.co/WebScraper991923/Affine-S6)**.
 
-Affine-S6 is a Qwen3-4B thinking model (`WebScraper991923/Affine-S6`) on Hugging Face. This project uses it to score job fit against your profile and write short match notes. Keyword ranking still works if the model is not loaded.
+Yes: put a resume in and it will work. Use a text-based `.pdf`, `.txt`, `.md`, or `.docx` (not a scanned image). The app pulls out your name, skills, and experience, then scores public job listings against that. Affine-S6 is optional extra ranking; keyword matching works immediately.
+
+## Put your resume in
+
+Any of these:
+
+1. Upload it on the web UI (`jobfinder serve`).
+2. Pass it on the command line:
+
+```bash
+jobfinder search "python intern" --resume /path/to/your-resume.pdf
+```
+
+3. Save it in this folder as `resume.pdf` (or `resume.txt` / `resume.docx`) and run a search. The file is picked up automatically.
+
+Preview what was parsed:
+
+```bash
+jobfinder profile --resume resume.example.txt
+```
+
+`resume.example.txt` is a sample you can copy. Scanned/image PDFs will not work unless you export them as text first.
 
 ## Quick start
 
@@ -10,29 +31,17 @@ Affine-S6 is a Qwen3-4B thinking model (`WebScraper991923/Affine-S6`) on Hugging
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-cp profile.example.yaml profile.yaml
+jobfinder search "python backend intern" --resume resume.example.txt
+jobfinder serve
 ```
 
-Search without downloading model weights:
-
-```bash
-jobfinder search "python backend intern"
-jobfinder model
-```
+Then open http://127.0.0.1:5000 and upload your resume.
 
 Re-rank the shortlist with Affine-S6 (needs one of the backends below):
 
 ```bash
-jobfinder rank "python backend intern"
+jobfinder rank "python backend intern" --resume resume.example.txt
 ```
-
-Web UI:
-
-```bash
-jobfinder serve
-```
-
-Then open http://127.0.0.1:5000
 
 ## Affine-S6
 
@@ -65,7 +74,7 @@ Listings come from public JSON APIs (no account required):
 - [Arbeitnow](https://www.arbeitnow.com/)
 - [Remote OK](https://remoteok.com/)
 
-Copy `profile.example.yaml` to `profile.yaml` and fill in skills, keywords, and things to avoid. Keyword matching uses that file immediately; Affine-S6 uses it as the ranking prompt.
+You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords or things to avoid. If both a resume and a YAML profile exist, they are merged.
 
 ## Tests
 

@@ -16,3 +16,10 @@ hf_cache/
 jobs.db
 *.log
 .DS_Store
+resume.pdf
+resume.docx
+resume.txt
+Resume.pdf
+cv.pdf
+cv.docx
+!resume.example.txt

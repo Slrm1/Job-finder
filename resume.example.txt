@@ -1,0 +1,24 @@
+Ada Lovelace
+Washington, DC | ada@example.com
+New-grad software engineer
+
+Summary
+Howard University CS student looking for internships or new-grad roles in
+Python backends, data/ML, or developer tooling. Open to remote.
+
+Education
+B.S. Computer Science, Howard University, 2026
+
+Skills
+Python, JavaScript, SQL, Git, Linux, Flask, REST APIs, Pandas
+
+Experience
+Software Engineering Intern, Civic Tech Lab
+- Built Flask APIs and dashboards used by 200 weekly users
+- Wrote Python scripts to clean and match public datasets
+
+Research Assistant, Howard University
+- Trained a text classifier with scikit-learn for course reviews
+
+Projects
+Job matcher: ranked internships from public APIs using keyword overlap

@@ -42,6 +42,8 @@ class Profile:
     keywords: list[str] = field(default_factory=list)
     avoid: list[str] = field(default_factory=list)
     notes: str = ""
+    resume_text: str = ""
+    source: str = "yaml"
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> "Profile":
@@ -56,6 +58,8 @@ class Profile:
             keywords=_as_list(data.get("keywords")),
             avoid=_as_list(data.get("avoid")),
             notes=str(data.get("notes") or "").strip(),
+            resume_text=str(data.get("resume_text") or "").strip(),
+            source=str(data.get("source") or "yaml"),
         )
 
     @classmethod
@@ -67,13 +71,15 @@ class Profile:
         parts = list(self.skills) + list(self.keywords)
         parts.extend(_tokenize(self.headline))
         parts.extend(_tokenize(self.notes))
+        parts.extend(_tokenize(self.resume_text[:2000]))
         return [term for term in parts if term]
 
     def as_prompt(self) -> str:
         skills = ", ".join(self.skills) or "unspecified"
         keywords = ", ".join(self.keywords) or "unspecified"
         avoid = ", ".join(self.avoid) or "none"
-        return (
+        resume = self.resume_text[:6000]
+        prompt = (
             f"Name: {self.name or 'Candidate'}\n"
             f"Headline: {self.headline}\n"
             f"Location: {self.location}\n"
@@ -84,6 +90,9 @@ class Profile:
             f"Avoid: {avoid}\n"
             f"Notes: {self.notes}"
         )
+        if resume:
+            prompt += f"\n\nRESUME\n{resume}"
+        return prompt
 
 
 def _as_list(value: Any) -> list[str]:
@@ -148,6 +157,16 @@ def keyword_score(job: Job, profile: Profile, query: str = "") -> RankedJob:
     if title_hits:
         score = min(100.0, score + 15)
         reasons.append("Title matches search terms")
+    if profile.resume_text:
+        resume_blob = profile.resume_text.lower()
+        title_in_resume = [
+            term
+            for term in _tokenize(job.title)
+            if term in resume_blob and term not in STOPWORDS
+        ]
+        if title_in_resume:
+            score = min(100.0, score + 10)
+            reasons.append("Resume overlaps the job title")
     if profile.remote_ok and "remote" in (job.location or "").lower():
         score = min(100.0, score + 5)
         reasons.append("Remote-friendly location")

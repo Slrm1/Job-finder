@@ -17,6 +17,7 @@ AFFINE_S6_URL = "https://huggingface.co/WebScraper991923/Affine-S6"
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_PROFILE_PATH = ROOT_DIR / "profile.yaml"
+DEFAULT_RESUME_PATH = ROOT_DIR / "resume.pdf"
 
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
 AFFINE_API_BASE = os.getenv("AFFINE_API_BASE") or os.getenv("OPENAI_BASE_URL")
