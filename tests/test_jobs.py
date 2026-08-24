@@ -2,6 +2,7 @@ from jobfinder.jobs import (
     SOURCES,
     Job,
     fetch_arbeitnow,
+    fetch_greenhouse,
     fetch_remoteok,
     fetch_remotive,
     search_jobs,
@@ -180,3 +181,35 @@ def test_search_jobs_prefers_query_overlap(monkeypatch):
     monkeypatch.setitem(SOURCES, "remoteok", lambda q, limit: [])
     results = search_jobs("python intern", limit=10)
     assert results[0].title == "Python Intern"
+
+
+def test_fetch_greenhouse_filters_title(monkeypatch):
+    payload = {
+        "jobs": [
+            {
+                "id": 9,
+                "title": "Python Intern",
+                "absolute_url": "https://example.com/gh",
+                "location": {"name": "Remote"},
+                "updated_at": "2026-01-01",
+            },
+            {
+                "id": 10,
+                "title": "Account Executive",
+                "absolute_url": "https://example.com/sales",
+                "location": {"name": "SF"},
+            },
+        ]
+    }
+    monkeypatch.setattr(
+        "jobfinder.jobs.GREENHOUSE_BOARDS",
+        ["stripe"],
+    )
+    monkeypatch.setattr(
+        "jobfinder.jobs.requests.Session.get",
+        lambda self, url, timeout=None: FakeResponse(payload),
+    )
+    jobs = fetch_greenhouse("python intern")
+    assert [job.title for job in jobs] == ["Python Intern"]
+    assert jobs[0].source == "greenhouse"
+    assert jobs[0].company == "Stripe"

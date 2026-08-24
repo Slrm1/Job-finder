@@ -91,6 +91,11 @@ def cmd_search(args: argparse.Namespace) -> int:
         from jobfinder.humanizer import humanize_ranked
 
         ranked = humanize_ranked(ranked)
+    if getattr(args, "save", None):
+        from jobfinder.tracker import save_ranked
+
+        stored = save_ranked(ranked, limit=args.save)
+        console.print(f"[green]Saved {len(stored)} jobs to the tracker.[/green]")
     _print_jobs(ranked, show_summary=bool(args.affine or args.verbose or getattr(args, "humanize", False)))
     console.print(f"\n{len(ranked)} jobs from public boards. Model: {AFFINE_S6_MODEL_ID}")
     return 0
@@ -99,6 +104,59 @@ def cmd_search(args: argparse.Namespace) -> int:
 def cmd_rank(args: argparse.Namespace) -> int:
     args.affine = True
     return cmd_search(args)
+
+
+def cmd_track(args: argparse.Namespace) -> int:
+    from jobfinder.tracker import (
+        STATUSES,
+        counts,
+        list_tracked,
+        remove_tracked,
+        set_notes,
+        set_status,
+    )
+
+    action = args.track_action
+    if action == "list":
+        rows = list_tracked(status=args.status)
+        if not rows:
+            console.print("No saved applications yet. Search with --save 5 to start.")
+            return 0
+        table = Table(title="Application tracker")
+        table.add_column("ID", justify="right")
+        table.add_column("Status")
+        table.add_column("Score", justify="right")
+        table.add_column("Title")
+        table.add_column("Company")
+        table.add_column("URL", overflow="fold")
+        for row in rows:
+            table.add_row(
+                str(row.id),
+                row.status,
+                "" if row.score is None else f"{row.score:.0f}",
+                row.title,
+                row.company,
+                row.url,
+            )
+        console.print(table)
+        tally = counts()
+        console.print(
+            "  ".join(f"{name}={tally[name]}" for name in STATUSES if tally[name])
+        )
+        return 0
+    if action == "status":
+        row = set_status(args.id, args.status)
+        console.print(f"#{row.id} {row.title} → {row.status}")
+        return 0
+    if action == "note":
+        row = set_notes(args.id, args.note)
+        console.print(f"#{row.id} note updated")
+        return 0
+    if action == "remove":
+        remove_tracked(args.id)
+        console.print(f"Removed #{args.id}")
+        return 0
+    return 1
 
 
 def cmd_profile(args: argparse.Namespace) -> int:
@@ -229,6 +287,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Rewrite fit notes with Ai-Humanizer-Llama-3.2-3B-GGUF",
     )
+    search.add_argument(
+        "--save",
+        type=int,
+        metavar="N",
+        help="Save the top N matches to the local application tracker",
+    )
     search.set_defaults(func=cmd_search)
 
     rank = sub.add_parser("rank", help="Search, then re-rank with Affine-S6")
@@ -238,6 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_candidate_flags(rank)
     rank.add_argument("--verbose", action="store_true")
     rank.add_argument("--humanize", action="store_true")
+    rank.add_argument("--save", type=int, metavar="N")
     rank.set_defaults(func=cmd_rank)
 
     preview = sub.add_parser("profile", help="Show the profile parsed from your resume")
@@ -270,6 +335,25 @@ def build_parser() -> argparse.ArgumentParser:
     pitch.add_argument("--sources")
     _add_candidate_flags(pitch)
     pitch.set_defaults(func=cmd_pitch)
+
+    track = sub.add_parser("track", help="Local application tracker (JobSync-style)")
+    from jobfinder.tracker import STATUSES as TRACK_STATUSES
+
+    track_sub = track.add_subparsers(dest="track_action", required=True)
+    listed = track_sub.add_parser("list", help="Show saved applications")
+    listed.add_argument("--status", choices=TRACK_STATUSES)
+    listed.set_defaults(func=cmd_track)
+    status = track_sub.add_parser("status", help="Update a saved job's status")
+    status.add_argument("id", type=int)
+    status.add_argument("status", choices=TRACK_STATUSES)
+    status.set_defaults(func=cmd_track)
+    note = track_sub.add_parser("note", help="Add a note to a saved job")
+    note.add_argument("id", type=int)
+    note.add_argument("note")
+    note.set_defaults(func=cmd_track)
+    remove = track_sub.add_parser("remove", help="Delete a saved job")
+    remove.add_argument("id", type=int)
+    remove.set_defaults(func=cmd_track)
 
     serve = sub.add_parser("serve", help="Run the web UI")
     serve.add_argument("--host", default="127.0.0.1")

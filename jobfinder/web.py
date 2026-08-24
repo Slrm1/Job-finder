@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Flask, render_template, request
+from flask import Flask, redirect, render_template, request, url_for
 
 from jobfinder.config import (
     AFFINE_S6_MODEL_ID,
@@ -10,7 +10,7 @@ from jobfinder.config import (
     HUMANIZER_MODEL_ID,
     HUMANIZER_URL,
 )
-from jobfinder.jobs import SOURCES, search_jobs
+from jobfinder.jobs import DEFAULT_SOURCES, SOURCES, Job, search_jobs
 from jobfinder.match import rank_jobs, rank_jobs_with_affine
 from jobfinder.resume import ResumeError, read_resume_bytes, resolve_profile
 
@@ -47,6 +47,7 @@ def create_app(
             humanizer_id=HUMANIZER_MODEL_ID,
             humanizer_url=HUMANIZER_URL,
             sources=list(SOURCES),
+            default_sources=list(DEFAULT_SOURCES),
             profile=profile,
             results=None,
             query="",
@@ -69,7 +70,7 @@ def create_app(
         query = (request.form.get("query") or "").strip()
         use_affine = request.form.get("affine") == "on"
         use_humanize = request.form.get("humanize") == "on"
-        selected = request.form.getlist("sources") or list(SOURCES)
+        selected = request.form.getlist("sources") or list(DEFAULT_SOURCES)
         error = None
         ranked = []
         try:
@@ -111,6 +112,75 @@ def create_app(
             used_humanize=use_humanize,
             selected_sources=selected,
         )
+
+    @app.post("/track")
+    def track_save():
+        from jobfinder.tracker import TrackerError, save_job
+
+        job = Job(
+            id=request.form.get("job_id") or "web",
+            title=request.form.get("title") or "Untitled",
+            company=request.form.get("company") or "Unknown",
+            location=request.form.get("location") or "",
+            url=request.form.get("url") or "",
+            description=request.form.get("description") or "",
+            source=request.form.get("source") or "web",
+        )
+        try:
+            score = float(request.form["score"]) if request.form.get("score") else None
+        except ValueError:
+            score = None
+        try:
+            save_job(
+                job,
+                status=request.form.get("status") or "saved",
+                score=score,
+                notes=request.form.get("notes") or "",
+            )
+        except TrackerError as exc:
+            return _template(error=str(exc), results=[])
+        return redirect(url_for("tracker"))
+
+    @app.get("/tracker")
+    def tracker():
+        from jobfinder.tracker import STATUSES, counts, list_tracked
+
+        status = request.args.get("status") or None
+        try:
+            rows = list_tracked(status=status)
+        except Exception as exc:
+            return _template(error=str(exc), results=[])
+        return render_template(
+            "tracker.html",
+            model_id=AFFINE_S6_MODEL_ID,
+            model_url=AFFINE_S6_URL,
+            humanizer_id=HUMANIZER_MODEL_ID,
+            humanizer_url=HUMANIZER_URL,
+            rows=rows,
+            statuses=STATUSES,
+            counts=counts(),
+            filter_status=status,
+        )
+
+    @app.post("/tracker/<int:entry_id>/status")
+    def tracker_status(entry_id: int):
+        from jobfinder.tracker import TrackerError, set_status
+
+        try:
+            set_status(entry_id, request.form.get("status") or "saved")
+        except TrackerError as exc:
+            return _template(error=str(exc), results=[])
+        return redirect(url_for("tracker"))
+
+    @app.post("/tracker/<int:entry_id>/remove")
+    def tracker_remove(entry_id: int):
+        from jobfinder.tracker import TrackerError, remove_tracked
+
+        try:
+            remove_tracked(entry_id)
+        except TrackerError as exc:
+            return _template(error=str(exc), results=[])
+        return redirect(url_for("tracker"))
 
     @app.post("/humanize")
     def humanize():

@@ -100,8 +100,26 @@ Listings come from public JSON APIs (no account required):
 - [Remotive](https://remotive.com/)
 - [Arbeitnow](https://www.arbeitnow.com/)
 - [Remote OK](https://remoteok.com/)
+- [Greenhouse](https://boards-api.greenhouse.io/) company boards (opt-in)
 
 You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords or things to avoid. If both a resume and a YAML profile exist, they are merged.
+
+## JobSync-style tracker
+
+[JobSync](https://github.com/Gsync/jobsync) is a full self-hosted Next.js app (Docker, dashboard, MCP, PDF resume export). It is **not** a library this Python project can import, so the whole app is not vendored here.
+
+What *is* helpful from it is the workflow after you find a role: **save it, set a status, keep notes**. Job-finder now has a local SQLite tracker for that, plus Greenhouse company boards (the same public API JobSync uses for discovery):
+
+```bash
+jobfinder search "python intern" --resume resume.example.txt --save 5
+jobfinder track list
+jobfinder track status 1 applied
+jobfinder track note 1 "emailed the recruiter"
+```
+
+On the web UI, click **Save to tracker** on a listing, then open **Tracker**. Opt into Greenhouse with `--sources remotive,greenhouse` or the Greenhouse checkbox. Default boards are Stripe, Airbnb, Discord, Figma, Notion, Cloudflare, and Databricks (`GREENHOUSE_BOARDS` to change them).
+
+If you want JobSync's full dashboard, resume PDF templates, and MCP server, run that project separately alongside this one.
 
 ## Tests
 

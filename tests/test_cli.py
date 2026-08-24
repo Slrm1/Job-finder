@@ -101,6 +101,8 @@ def test_web_index_and_search(monkeypatch):
     assert response.status_code == 200
     assert b"Python Intern" in response.data
     assert b"Good intern fit" in response.data
+    assert b"Save to tracker" in response.data
+    assert b"Tracker" in home.data
 
     sample = (
         b"Ada Lovelace\nPython intern\n\nSkills\nPython, Flask, SQL, Git\n\n"
@@ -126,3 +128,28 @@ def test_web_index_and_search(monkeypatch):
     assert rewritten.status_code == 200
     assert b"heuristic" in rewritten.data or b"Humanizer" in rewritten.data
     assert b"Python" in rewritten.data
+
+
+def test_web_tracker_save_and_list(tmp_path, monkeypatch):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    app = create_app()
+    client = app.test_client()
+    page = client.get("/tracker")
+    assert page.status_code == 200
+    assert b"Application tracker" in page.data
+    saved = client.post(
+        "/track",
+        data={
+            "title": "Python Intern",
+            "company": "Acme",
+            "location": "Remote",
+            "url": "https://example.com/1",
+            "source": "remotive",
+            "score": "90",
+        },
+        follow_redirects=True,
+    )
+    assert saved.status_code == 200
+    assert b"Python Intern" in saved.data
+    assert b"Acme" in saved.data

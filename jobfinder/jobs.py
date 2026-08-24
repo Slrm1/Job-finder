@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 
 import requests
 
-from jobfinder.config import USER_AGENT
+from jobfinder.config import GREENHOUSE_BOARDS, USER_AGENT
 
 TIMEOUT = 20
 
@@ -202,6 +202,44 @@ def fetch_remoteok(query: str, limit: int = 25) -> list[Job]:
     return jobs
 
 
+def fetch_greenhouse(query: str, limit: int = 25) -> list[Job]:
+    """Company career boards via Greenhouse's public API (no key)."""
+    jobs: list[Job] = []
+    for board in GREENHOUSE_BOARDS:
+        if len(jobs) >= limit:
+            break
+        try:
+            response = _session().get(
+                f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs",
+                timeout=TIMEOUT,
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            continue
+        company = board.replace("-", " ").title()
+        payload = response.json()
+        for item in payload.get("jobs", []):
+            title = item.get("title") or "Untitled"
+            location = (item.get("location") or {}).get("name") or ""
+            if not _matches_query(query, title, company, location):
+                continue
+            jobs.append(
+                Job(
+                    id=_job_id("greenhouse", board, str(item.get("id") or title)),
+                    title=title,
+                    company=company,
+                    location=location or "Unknown",
+                    url=item.get("absolute_url") or "",
+                    description="",
+                    source="greenhouse",
+                    posted_at=item.get("updated_at"),
+                )
+            )
+            if len(jobs) >= limit:
+                break
+    return jobs
+
+
 def _remoteok_salary(item: dict[str, Any]) -> str | None:
     low, high = item.get("salary_min"), item.get("salary_max")
     if low and high:
@@ -227,7 +265,9 @@ SOURCES: dict[str, Callable[[str, int], list[Job]]] = {
     "remotive": fetch_remotive,
     "arbeitnow": fetch_arbeitnow,
     "remoteok": fetch_remoteok,
+    "greenhouse": fetch_greenhouse,
 }
+DEFAULT_SOURCES = ("remotive", "arbeitnow", "remoteok")
 
 
 def search_jobs(
@@ -238,7 +278,7 @@ def search_jobs(
     per_source: int | None = None,
 ) -> list[Job]:
     """Fetch jobs from public APIs and de-duplicate by URL/title+company."""
-    selected = list(sources) if sources else list(SOURCES)
+    selected = list(sources) if sources else list(DEFAULT_SOURCES)
     unknown = [name for name in selected if name not in SOURCES]
     if unknown:
         raise ValueError(f"Unknown job sources: {', '.join(unknown)}")

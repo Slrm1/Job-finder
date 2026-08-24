@@ -38,6 +38,16 @@ AFFINE_MODEL = os.getenv("AFFINE_MODEL", AFFINE_S6_MODEL_ID)
 
 USER_AGENT = "Job-finder/0.1 (+https://github.com/Slrm1/Job-finder)"
 
+JOBFINDER_DB = Path(os.getenv("JOBFINDER_DB", str(ROOT_DIR / "jobs.db")))
+GREENHOUSE_BOARDS = [
+    token.strip()
+    for token in os.getenv(
+        "GREENHOUSE_BOARDS",
+        "stripe,airbnb,discord,figma,notion,cloudflare,databricks",
+    ).split(",")
+    if token.strip()
+]
+
 THINK_END_TOKEN = "</think>"
 # Qwen3 tokenizer id for </think>
 THINK_END_TOKEN_ID = 151668

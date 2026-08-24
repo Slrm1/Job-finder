@@ -47,15 +47,13 @@
     .row { display: flex; flex-wrap: wrap; gap: 1rem; }
     .row > * { flex: 1; min-width: 140px; }
     .checks { display: flex; gap: 1rem; flex-wrap: wrap; }
-    button {
-      background: var(--accent);
-      color: #081018;
-      border: 0;
-      border-radius: 999px;
-      padding: .75rem 1.2rem;
-      font-weight: 700;
-      cursor: pointer;
+    button.ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid #33455c;
     }
+    nav { margin-bottom: 1.25rem; }
+    nav a { margin-right: 1rem; }
     .error { background: #3a1c1c; color: #ffb4b4; padding: .8rem 1rem; border-radius: 10px; }
     .job {
       background: var(--card);
@@ -87,6 +85,10 @@
 </head>
 <body>
   <main>
+    <nav>
+      <a href="{{ url_for('index') }}">Search</a>
+      <a href="{{ url_for('tracker') }}">Tracker</a>
+    </nav>
     <h1>Job-finder</h1>
     <p class="lede">
       Drop in your resume, then search public job boards. Listings are ranked with
@@ -122,7 +124,7 @@
             {% for source in sources %}
             <label>
               <input type="checkbox" name="sources" value="{{ source }}"
-                     {% if source in selected_sources|default(sources) %}checked{% endif %}>
+                     {% if source in selected_sources|default(default_sources) %}checked{% endif %}>
               {{ source }}
             </label>
             {% endfor %}
@@ -173,6 +175,17 @@
           {% endif %}
           {% if item.summary %}<p>{{ item.summary }}</p>{% endif %}
           {% for reason in item.reasons %}<span class="pill">{{ reason }}</span>{% endfor %}
+          <form method="post" action="{{ url_for('track_save') }}" style="margin-top:.8rem">
+            <input type="hidden" name="job_id" value="{{ item.job.id }}">
+            <input type="hidden" name="title" value="{{ item.job.title }}">
+            <input type="hidden" name="company" value="{{ item.job.company }}">
+            <input type="hidden" name="location" value="{{ item.job.location }}">
+            <input type="hidden" name="url" value="{{ item.job.url }}">
+            <input type="hidden" name="source" value="{{ item.job.source }}">
+            <input type="hidden" name="score" value="{{ item.score }}">
+            <input type="hidden" name="notes" value="{{ item.summary }}">
+            <button class="ghost" type="submit">Save to tracker</button>
+          </form>
         </article>
       {% endfor %}
       {% if results|length == 0 %}
