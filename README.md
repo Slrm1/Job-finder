@@ -130,6 +130,15 @@ RESEND_API_KEY=re_xxxxxxxx
 
 or `SENDGRID_API_KEY=SG.xxxxxxxx` or `APPLY_API_KEY=re_xxxxxxxx`.
 
+Check what is configured (secrets are not printed):
+
+```bash
+jobfinder keys
+jobfinder keys --test
+```
+
+`--test` emails you through the API key so you know apply-on-your-behalf works.
+
 SMTP fallback:
 
 ```

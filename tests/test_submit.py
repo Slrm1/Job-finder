@@ -3,11 +3,22 @@ from jobfinder.submit import (
     discover_apply_target,
     email_backend,
     greenhouse_payload,
+    key_status,
     parse_greenhouse,
     send_application_email,
     split_name,
     submit_greenhouse,
 )
+
+
+def test_key_status_has_no_secrets(monkeypatch):
+    monkeypatch.setattr("jobfinder.config.RESEND_API_KEY", "re_super_secret")
+    monkeypatch.setattr("jobfinder.config.APPLY_API_KEY", "re_super_secret")
+    status = key_status()
+    blob = " ".join(f"{k}={v}" for k, v in status.items())
+    assert "re_super_secret" not in blob
+    assert status["RESEND_API_KEY"] == "set"
+    assert status["APPLY_API_KEY"] == "set"
 
 
 def test_parse_greenhouse_urls():

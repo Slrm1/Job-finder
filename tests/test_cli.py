@@ -25,6 +25,7 @@ def test_parser_dashboard_resume_pdf_and_mcp():
     assert pdf.output == "out.pdf"
     assert pdf.template == "professional"
     assert parser.parse_args(["mcp"]).func.__name__ == "cmd_mcp"
+    assert parser.parse_args(["keys", "--test", "--to", "ada@example.com"]).to == "ada@example.com"
     apply_args = parser.parse_args(["apply", "3", "--send", "--mark-applied"])
     assert apply_args.id == 3
     assert apply_args.send is True
@@ -62,6 +63,47 @@ def test_model_command(capsys):
     assert "huggingface.co/WebScraper991923/Affine-S6" in out
     assert "mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in out
     assert "Apply:" in out
+
+
+def test_keys_command(capsys):
+    assert main(["keys"]) == 0
+    out = capsys.readouterr().out
+    assert "RESEND_API_KEY" in out
+    assert "SENDGRID_API_KEY" in out
+    assert "APPLY_API_KEY" in out
+    assert "GREENHOUSE_JOB_BOARD_KEY" in out
+    assert "missing" in out or "set" in out
+
+
+def test_keys_test_send_without_live_http(monkeypatch, capsys):
+    from jobfinder.submit import SubmitResult
+
+    seen = {}
+
+    def fake_send(**kwargs):
+        seen.update(kwargs)
+        return SubmitResult(
+            submitted=True,
+            method="resend",
+            message="Sent cover letter and resume to ada@example.com via resend API.",
+            email=kwargs["to"],
+        )
+
+    monkeypatch.setattr("jobfinder.submit.email_backend", lambda: "resend")
+    monkeypatch.setattr("jobfinder.submit.send_application_email", fake_send)
+    monkeypatch.setattr("jobfinder.config.APPLY_FROM", "ada@example.com")
+    assert main(["keys", "--test", "--to", "ada@example.com"]) == 0
+    out = capsys.readouterr().out
+    assert "via resend API" in out
+    assert seen["to"] == "ada@example.com"
+    assert seen["subject"] == "Job-finder API key test"
+
+
+def test_keys_test_requires_api_key(monkeypatch, capsys):
+    monkeypatch.setattr("jobfinder.submit.email_backend", lambda: "")
+    monkeypatch.setattr("jobfinder.config.APPLY_FROM", "ada@example.com")
+    assert main(["keys", "--test"]) == 1
+    assert "Test send needs" in capsys.readouterr().out
 
 
 def test_search_command_uses_keyword_rank(monkeypatch, capsys):

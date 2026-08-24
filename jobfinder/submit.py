@@ -175,6 +175,35 @@ def email_api_ready() -> bool:
     return email_backend() in {"resend", "sendgrid", "mailgun"}
 
 
+def key_status() -> dict[str, str]:
+    """Which apply credentials are present (no secret values)."""
+    from jobfinder.config import (
+        APPLY_API_KEY,
+        APPLY_FROM,
+        APPLY_SMTP_HOST,
+        GREENHOUSE_JOB_BOARD_KEY,
+        MAILGUN_API_KEY,
+        MAILGUN_DOMAIN,
+        RESEND_API_KEY,
+        SENDGRID_API_KEY,
+    )
+
+    def flag(ok: bool) -> str:
+        return "set" if ok else "missing"
+
+    return {
+        "email_backend": email_backend() or "none",
+        "APPLY_FROM": flag(bool(APPLY_FROM)),
+        "APPLY_API_KEY": flag(bool(APPLY_API_KEY)),
+        "RESEND_API_KEY": flag(bool(RESEND_API_KEY)),
+        "SENDGRID_API_KEY": flag(bool(SENDGRID_API_KEY)),
+        "MAILGUN_API_KEY": flag(bool(MAILGUN_API_KEY)),
+        "MAILGUN_DOMAIN": flag(bool(MAILGUN_DOMAIN)),
+        "APPLY_SMTP_HOST": flag(bool(APPLY_SMTP_HOST)),
+        "GREENHOUSE_JOB_BOARD_KEY": flag(bool(GREENHOUSE_JOB_BOARD_KEY)),
+    }
+
+
 def send_application_email(
     *,
     to: str,

@@ -379,6 +379,57 @@ def cmd_model(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_keys(args: argparse.Namespace) -> int:
+    from jobfinder.config import APPLY_FROM
+    from jobfinder.submit import SubmitError, email_backend, key_status, send_application_email
+
+    status = key_status()
+    table = Table(title="Apply API keys")
+    table.add_column("Setting")
+    table.add_column("Status")
+    for name, value in status.items():
+        table.add_row(name, value)
+    console.print(table)
+    backend = email_backend()
+    if backend in {"resend", "sendgrid", "mailgun"}:
+        console.print(f"[green]Ready to send applications via the {backend} API.[/green]")
+    elif backend == "smtp":
+        console.print("[green]Ready to send applications via SMTP.[/green]")
+    else:
+        console.print(
+            "[yellow]No send key yet.[/yellow] Add one of these to .env, then rerun "
+            "[bold]jobfinder keys[/bold]:\n"
+            "  APPLY_FROM=you@example.com\n"
+            "  RESEND_API_KEY=re_xxxxxxxx\n"
+            "or SENDGRID_API_KEY=SG.xxxxxxxx\n"
+            "or APPLY_API_KEY=re_xxxxxxxx"
+        )
+    if not args.test:
+        return 0
+    dest = args.to or APPLY_FROM
+    if not dest:
+        console.print("[red]Pass --to you@example.com or set APPLY_FROM for a test send.[/red]")
+        return 1
+    if backend not in {"resend", "sendgrid", "mailgun"}:
+        console.print("[red]Test send needs RESEND_API_KEY, SENDGRID_API_KEY, or MAILGUN_API_KEY.[/red]")
+        return 1
+    try:
+        result = send_application_email(
+            to=dest,
+            from_addr=APPLY_FROM or dest,
+            subject="Job-finder API key test",
+            body=(
+                "This is a test from Job-finder. If you received it, your email "
+                "API key can submit applications on your behalf."
+            ),
+        )
+    except SubmitError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+    console.print(f"[green]{result.message}[/green]")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jobfinder",
@@ -561,6 +612,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     model = sub.add_parser("model", help="Show the configured Affine-S6 model")
     model.set_defaults(func=cmd_model)
+
+    keys = sub.add_parser("keys", help="Show apply API key status (no secrets printed)")
+    keys.add_argument(
+        "--test",
+        action="store_true",
+        help="Send a test email to APPLY_FROM using the configured API key",
+    )
+    keys.add_argument("--to", help="Override the test recipient")
+    keys.set_defaults(func=cmd_keys)
     return parser
 
 
