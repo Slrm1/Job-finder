@@ -13,6 +13,7 @@ dist/
 build/
 .cache/
 hf_cache/
+*.gguf
 jobs.db
 *.log
 .DS_Store

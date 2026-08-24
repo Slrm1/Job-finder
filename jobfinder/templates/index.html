@@ -34,14 +34,16 @@
       gap: .9rem;
     }
     label { font-size: .85rem; color: var(--muted); display: block; margin-bottom: .3rem; }
-    input[type=text], input[type=number], input[type=file] {
+    input[type=text], input[type=number], input[type=file], textarea {
       width: 100%;
       padding: .7rem .8rem;
       border-radius: 10px;
       border: 1px solid #33455c;
       background: #101821;
       color: var(--ink);
+      font: inherit;
     }
+    textarea { min-height: 8rem; resize: vertical; }
     .row { display: flex; flex-wrap: wrap; gap: 1rem; }
     .row > * { flex: 1; min-width: 140px; }
     .checks { display: flex; gap: 1rem; flex-wrap: wrap; }
@@ -88,7 +90,9 @@
     <h1>Job-finder</h1>
     <p class="lede">
       Drop in your resume, then search public job boards. Listings are ranked with
-      <a href="{{ model_url }}">{{ model_id }}</a>.
+      <a href="{{ model_url }}">{{ model_id }}</a>
+      and can be rewritten with
+      <a href="{{ humanizer_url }}">{{ humanizer_id }}</a>.
     </p>
 
     <form method="post" action="{{ url_for('search') }}" enctype="multipart/form-data">
@@ -129,7 +133,23 @@
         <input type="checkbox" name="affine" {% if used_affine %}checked{% endif %}>
         Re-rank with Affine-S6
       </label>
+      <label>
+        <input type="checkbox" name="humanize" {% if used_humanize %}checked{% endif %}>
+        Humanize fit notes
+      </label>
       <button type="submit">Find jobs</button>
+    </form>
+
+    <form method="post" action="{{ url_for('humanize') }}" style="margin-top:1rem">
+      <div>
+        <label for="text">Humanize any text</label>
+        <textarea id="text" name="text" placeholder="Paste an AI-written cover note or summary.">{{ humanize_input }}</textarea>
+      </div>
+      <button type="submit">Humanize</button>
+      {% if humanize_output %}
+        <p class="meta">{{ humanize_backend }} · {{ humanizer_id }}</p>
+        <p>{{ humanize_output }}</p>
+      {% endif %}
     </form>
 
     {% if error %}
@@ -140,6 +160,7 @@
       <p class="lede" style="margin-top:1.5rem">
         {{ results|length }} matches
         {% if used_affine %} · ranked by Affine-S6{% else %} · keyword score{% endif %}
+        {% if used_humanize %} · humanized{% endif %}
         {% if profile.resume_text %} · resume {{ profile.name or "uploaded" }}{% elif profile.name %} · profile {{ profile.name }}{% endif %}
       </p>
       {% for item in results %}

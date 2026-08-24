@@ -2,7 +2,7 @@
 
 Search public job boards and rank listings against **your resume** using **[Affine-S6](https://huggingface.co/WebScraper991923/Affine-S6)**.
 
-Yes: put a resume in and it will work. Use a text-based `.pdf`, `.txt`, `.md`, or `.docx` (not a scanned image). The app pulls out your name, skills, and experience, then scores public job listings against that. Affine-S6 is optional extra ranking; keyword matching works immediately.
+Yes: put a resume in and it will work. Use a text-based `.pdf`, `.txt`, `.md`, or `.docx` (not a scanned image). The app pulls out your name, skills, and experience, then scores public job listings against that. Affine-S6 is optional extra ranking; keyword matching works immediately. Fit notes and cover text can be rewritten with **[Ai-Humanizer-Llama-3.2-3B-GGUF](https://huggingface.co/mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF)**.
 
 ## Put your resume in
 
@@ -65,6 +65,33 @@ pip install -e '.[ml]'
 Local CPU inference needs several GB of RAM. A GPU or a remote endpoint is strongly preferred.
 
 Sampling follows the model card: temperature `0.6`, top-p `0.95`, top-k `20`. Thinking text (`</think>`) is stripped before ranking JSON is parsed.
+
+## Humanizer
+
+| | |
+| --- | --- |
+| Model | [`mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF`](https://huggingface.co/mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF) |
+| Base | [`KNipun/Ai-Humanizer-Llama-3.2-3B`](https://huggingface.co/KNipun/Ai-Humanizer-Llama-3.2-3B) |
+| Default quant | `Q4_K_M` (~2.1 GB) |
+
+Rewrite AI-sounding fit notes, chat replies, or a cover pitch:
+
+```bash
+jobfinder humanize "I am writing to express my strong interest in this robust opportunity."
+jobfinder search "python intern" --resume resume.example.txt --humanize
+jobfinder pitch "python intern" --resume resume.example.txt
+```
+
+On the web UI, check **Humanize fit notes** or paste text into the humanize box.
+
+Without GGUF weights, a small heuristic rewriter still strips common AI phrasing. To run the actual Llama 3.2 3B GGUF locally:
+
+```bash
+pip install -e '.[humanizer]'
+HUMANIZER_BACKEND=gguf jobfinder humanize "Paste AI text here."
+```
+
+That downloads `Ai-Humanizer-Llama-3.2-3B.Q4_K_M.gguf` into `.cache/gguf/` on first use. You can point `HUMANIZER_API_BASE` at any OpenAI-compatible server that hosts the same model.
 
 ## Job sources
 

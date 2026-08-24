@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import sys
 
 from rich.console import Console
 from rich.table import Table
 
-from jobfinder.config import AFFINE_S6_MODEL_ID, AFFINE_S6_URL
+from jobfinder.config import AFFINE_S6_MODEL_ID, AFFINE_S6_URL, HUMANIZER_MODEL_ID, HUMANIZER_URL
 from jobfinder.jobs import SOURCES, search_jobs
 from jobfinder.match import rank_jobs, rank_jobs_with_affine
 from jobfinder.resume import resolve_profile
@@ -86,7 +87,11 @@ def cmd_search(args: argparse.Namespace) -> int:
         )
     else:
         ranked = rank_jobs(jobs, profile, query=args.query)
-    _print_jobs(ranked, show_summary=bool(args.affine or args.verbose))
+    if getattr(args, "humanize", False):
+        from jobfinder.humanizer import humanize_ranked
+
+        ranked = humanize_ranked(ranked)
+    _print_jobs(ranked, show_summary=bool(args.affine or args.verbose or getattr(args, "humanize", False)))
     console.print(f"\n{len(ranked)} jobs from public boards. Model: {AFFINE_S6_MODEL_ID}")
     return 0
 
@@ -121,7 +126,57 @@ def cmd_chat(args: argparse.Namespace) -> int:
         console.print("[dim]thinking[/dim]")
         console.print(reply.thinking)
         console.print()
-    console.print(reply.content)
+    text = reply.content
+    if getattr(args, "humanize", False):
+        from jobfinder.humanizer import humanize_text
+
+        text = humanize_text(text).text()
+        console.print(f"[dim]humanized with {HUMANIZER_MODEL_ID}[/dim]")
+    console.print(text)
+    return 0
+
+
+def cmd_humanize(args: argparse.Namespace) -> int:
+    from jobfinder.humanizer import humanize_text
+
+    text = args.text
+    if args.file:
+        text = Path(args.file).read_text(encoding="utf-8")
+    if not (text or "").strip():
+        console.print("[red]Pass text or --file[/red]")
+        return 1
+    result = humanize_text(text, backend=args.backend)
+    if args.original:
+        console.print("[dim]original[/dim]")
+        console.print(result.original)
+        console.print()
+    console.print(f"[dim]{result.backend} · {result.model}[/dim]")
+    console.print(result.text())
+    return 0
+
+
+def cmd_pitch(args: argparse.Namespace) -> int:
+    from jobfinder.humanizer import draft_pitch, humanize_text
+
+    jobs = search_jobs(
+        args.query,
+        sources=args.sources.split(",") if args.sources else None,
+        limit=max(args.limit, 5),
+    )
+    profile = _load_profile(args)
+    ranked = rank_jobs(jobs, profile, query=args.query)
+    if not ranked:
+        console.print("[red]No jobs found to pitch.[/red]")
+        return 1
+    top = ranked[0]
+    draft = draft_pitch(top.job.title, top.job.company, profile)
+    result = humanize_text(draft)
+    console.print(f"[bold]{top.job.title}[/bold] — {top.job.company} ({top.score:.0f})")
+    if top.job.url:
+        console.print(top.job.url)
+    console.print()
+    console.print(f"[dim]{result.backend} · {HUMANIZER_MODEL_ID}[/dim]")
+    console.print(result.text())
     return 0
 
 
@@ -130,16 +185,21 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     app = create_app(profile_path=args.profile, resume_path=args.resume)
     console.print(f"Affine-S6 model: {AFFINE_S6_URL}")
+    console.print(f"Humanizer:       {HUMANIZER_URL}")
     app.run(host=args.host, port=args.port, debug=args.debug)
     return 0
 
 
 def cmd_model(_: argparse.Namespace) -> int:
-    from jobfinder.affine import available_backend
+    from jobfinder.affine import available_backend as affine_backend
+    from jobfinder.humanizer import available_backend as humanizer_backend
 
-    console.print(f"Model:    {AFFINE_S6_MODEL_ID}")
-    console.print(f"URL:      {AFFINE_S6_URL}")
-    console.print(f"Backend:  {available_backend()}")
+    console.print(f"Ranker:     {AFFINE_S6_MODEL_ID}")
+    console.print(f"            {AFFINE_S6_URL}")
+    console.print(f"            backend {affine_backend()}")
+    console.print(f"Humanizer:  {HUMANIZER_MODEL_ID}")
+    console.print(f"            {HUMANIZER_URL}")
+    console.print(f"            backend {humanizer_backend()}")
     return 0
 
 
@@ -164,6 +224,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Re-rank the shortlist with Affine-S6 (needs local weights or HF_TOKEN)",
     )
     search.add_argument("--verbose", action="store_true")
+    search.add_argument(
+        "--humanize",
+        action="store_true",
+        help="Rewrite fit notes with Ai-Humanizer-Llama-3.2-3B-GGUF",
+    )
     search.set_defaults(func=cmd_search)
 
     rank = sub.add_parser("rank", help="Search, then re-rank with Affine-S6")
@@ -172,6 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--sources")
     _add_candidate_flags(rank)
     rank.add_argument("--verbose", action="store_true")
+    rank.add_argument("--humanize", action="store_true")
     rank.set_defaults(func=cmd_rank)
 
     preview = sub.add_parser("profile", help="Show the profile parsed from your resume")
@@ -181,7 +247,29 @@ def build_parser() -> argparse.ArgumentParser:
     chat = sub.add_parser("chat", help="Ask Affine-S6 a question")
     chat.add_argument("prompt")
     chat.add_argument("--thinking", action="store_true", help="Show hidden reasoning")
+    chat.add_argument("--humanize", action="store_true")
     chat.set_defaults(func=cmd_chat)
+
+    humanize = sub.add_parser(
+        "humanize",
+        help="Rewrite text with Ai-Humanizer-Llama-3.2-3B-GGUF",
+    )
+    humanize.add_argument("text", nargs="?", default="", help="Text to rewrite")
+    humanize.add_argument("--file", help="Read text from a file")
+    humanize.add_argument("--original", action="store_true", help="Also print the input")
+    humanize.add_argument(
+        "--backend",
+        choices=["auto", "gguf", "heuristic", "huggingface", "openai"],
+        default=None,
+    )
+    humanize.set_defaults(func=cmd_humanize)
+
+    pitch = sub.add_parser("pitch", help="Draft a humanized note for the best match")
+    pitch.add_argument("query")
+    pitch.add_argument("--limit", type=int, default=10)
+    pitch.add_argument("--sources")
+    _add_candidate_flags(pitch)
+    pitch.set_defaults(func=cmd_pitch)
 
     serve = sub.add_parser("serve", help="Run the web UI")
     serve.add_argument("--host", default="127.0.0.1")

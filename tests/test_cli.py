@@ -16,6 +16,23 @@ def test_parser_search_flags():
     assert args.resume == "me.pdf"
 
 
+def test_humanize_command(capsys):
+    assert (
+        main(
+            [
+                "humanize",
+                "--backend",
+                "heuristic",
+                "It is important to note that I can leverage this robust role.",
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "leverage" not in out.lower()
+    assert "Ai-Humanizer-Llama-3.2-3B-GGUF" in out
+
+
 def test_profile_command_reads_resume(capsys):
     assert main(["profile", "--resume", "resume.example.txt"]) == 0
     out = capsys.readouterr().out
@@ -28,6 +45,7 @@ def test_model_command(capsys):
     out = capsys.readouterr().out
     assert "WebScraper991923/Affine-S6" in out
     assert "huggingface.co/WebScraper991923/Affine-S6" in out
+    assert "mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in out
 
 
 def test_search_command_uses_keyword_rank(monkeypatch, capsys):
@@ -72,6 +90,8 @@ def test_web_index_and_search(monkeypatch):
     assert home.status_code == 200
     assert b"WebScraper991923/Affine-S6" in home.data
     assert b'name="resume"' in home.data
+    assert b"humanize" in home.data
+    assert b"mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in home.data
 
     ranked = RankedJob(job=job, score=90, summary="Good intern fit", method="keywords")
     monkeypatch.setattr(
@@ -96,3 +116,13 @@ def test_web_index_and_search(monkeypatch):
     )
     assert upload.status_code == 200
     assert b"Ada Lovelace" in upload.data or b"resume" in upload.data.lower()
+
+    rewritten = client.post(
+        "/humanize",
+        data={
+            "text": "It is important to note that I can leverage this robust Python internship."
+        },
+    )
+    assert rewritten.status_code == 200
+    assert b"heuristic" in rewritten.data or b"Humanizer" in rewritten.data
+    assert b"Python" in rewritten.data

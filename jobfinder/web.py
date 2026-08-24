@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from flask import Flask, render_template, request
 
-from jobfinder.config import AFFINE_S6_MODEL_ID, AFFINE_S6_URL
+from jobfinder.config import (
+    AFFINE_S6_MODEL_ID,
+    AFFINE_S6_URL,
+    HUMANIZER_MODEL_ID,
+    HUMANIZER_URL,
+)
 from jobfinder.jobs import SOURCES, search_jobs
 from jobfinder.match import rank_jobs, rank_jobs_with_affine
 from jobfinder.resume import ResumeError, read_resume_bytes, resolve_profile
@@ -39,12 +44,18 @@ def create_app(
         payload = dict(
             model_id=AFFINE_S6_MODEL_ID,
             model_url=AFFINE_S6_URL,
+            humanizer_id=HUMANIZER_MODEL_ID,
+            humanizer_url=HUMANIZER_URL,
             sources=list(SOURCES),
             profile=profile,
             results=None,
             query="",
             error=None,
             used_affine=False,
+            used_humanize=False,
+            humanize_input="",
+            humanize_output="",
+            humanize_backend="",
         )
         payload.update(extra)
         return render_template("index.html", **payload)
@@ -57,6 +68,7 @@ def create_app(
     def search():
         query = (request.form.get("query") or "").strip()
         use_affine = request.form.get("affine") == "on"
+        use_humanize = request.form.get("humanize") == "on"
         selected = request.form.getlist("sources") or list(SOURCES)
         error = None
         ranked = []
@@ -71,6 +83,7 @@ def create_app(
                 error=str(exc),
                 query=query,
                 used_affine=use_affine,
+                used_humanize=use_humanize,
                 selected_sources=selected,
                 results=[],
             )
@@ -83,6 +96,10 @@ def create_app(
                     )
                 else:
                     ranked = rank_jobs(jobs, profile, query=query)
+                if use_humanize:
+                    from jobfinder.humanizer import humanize_ranked
+
+                    ranked = humanize_ranked(ranked)
             except Exception as exc:
                 error = str(exc)
         return _template(
@@ -91,7 +108,30 @@ def create_app(
             query=query,
             error=error,
             used_affine=use_affine,
+            used_humanize=use_humanize,
             selected_sources=selected,
+        )
+
+    @app.post("/humanize")
+    def humanize():
+        from jobfinder.humanizer import humanize_text
+
+        text = (request.form.get("text") or "").strip()
+        error = None
+        output = ""
+        backend = ""
+        if text:
+            try:
+                result = humanize_text(text)
+                output = result.text()
+                backend = result.backend
+            except Exception as exc:
+                error = str(exc)
+        return _template(
+            humanize_input=text,
+            humanize_output=output,
+            humanize_backend=backend,
+            error=error,
         )
 
     return app

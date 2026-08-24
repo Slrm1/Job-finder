@@ -15,6 +15,17 @@ AFFINE_S6_MODEL_ID = "WebScraper991923/Affine-S6"
 AFFINE_S6_REVISION = "b3e23b1895ad43fa48437d3d126f89aa17e53698"
 AFFINE_S6_URL = "https://huggingface.co/WebScraper991923/Affine-S6"
 
+# AI humanizer (GGUF): https://huggingface.co/mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF
+HUMANIZER_MODEL_ID = "mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF"
+HUMANIZER_BASE_MODEL = "KNipun/Ai-Humanizer-Llama-3.2-3B"
+HUMANIZER_URL = "https://huggingface.co/mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF"
+HUMANIZER_GGUF_FILE = os.getenv(
+    "HUMANIZER_GGUF_FILE", "Ai-Humanizer-Llama-3.2-3B.Q4_K_M.gguf"
+)
+HUMANIZER_BACKEND = os.getenv("HUMANIZER_BACKEND", "auto").strip().lower()
+HUMANIZER_API_BASE = os.getenv("HUMANIZER_API_BASE")
+HUMANIZER_API_KEY = os.getenv("HUMANIZER_API_KEY") or os.getenv("HF_TOKEN")
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_PROFILE_PATH = ROOT_DIR / "profile.yaml"
 DEFAULT_RESUME_PATH = ROOT_DIR / "resume.pdf"

@@ -119,6 +119,7 @@ class RankedJob:
     missing_skills: list[str] = field(default_factory=list)
     summary: str = ""
     method: str = "keywords"
+    humanized: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
