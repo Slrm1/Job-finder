@@ -15,6 +15,7 @@ SAMPLE = Path(__file__).resolve().parents[1] / "resume.example.txt"
 def test_parse_example_resume():
     profile = parse_resume(SAMPLE.read_text())
     assert profile["name"] == "Ada Lovelace"
+    assert profile["email"] == "ada@example.com"
     assert "Python" in profile["skills"]
     assert "Flask" in profile["skills"]
     assert any("intern" in item for item in profile["keywords"])

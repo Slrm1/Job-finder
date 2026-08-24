@@ -25,6 +25,10 @@ def test_parser_dashboard_resume_pdf_and_mcp():
     assert pdf.output == "out.pdf"
     assert pdf.template == "professional"
     assert parser.parse_args(["mcp"]).func.__name__ == "cmd_mcp"
+    apply_args = parser.parse_args(["apply", "3", "--send", "--mark-applied"])
+    assert apply_args.id == 3
+    assert apply_args.send is True
+    assert apply_args.mark_applied is True
 
 
 def test_humanize_command(capsys):
@@ -127,6 +131,32 @@ def test_resume_pdf_command(tmp_path, capsys):
     assert "professional" in capsys.readouterr().out
 
 
+def test_apply_command_drafts_letter(tmp_path, monkeypatch, capsys):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    monkeypatch.setattr("jobfinder.apply.APPLY_DIR", tmp_path / "packets")
+    from jobfinder.tracker import save_job
+
+    save_job(
+        Job(
+            id="1",
+            title="Python Intern",
+            company="Acme",
+            location="Remote",
+            url="https://jobs.acme.test/1",
+            description="Python internship",
+            source="remotive",
+            apply_email="jobs@acme.test",
+        ),
+        db_path=db,
+    )
+    assert main(["apply", "1", "--resume", "resume.example.txt", "--mark-applied"]) == 0
+    out = capsys.readouterr().out
+    assert "Python Intern" in out
+    assert "Ada Lovelace" in out
+    assert "Acme" in out
+
+
 def test_web_index_and_search(monkeypatch):
     job = Job(
         id="1",
@@ -159,6 +189,7 @@ def test_web_index_and_search(monkeypatch):
     assert b"Python Intern" in response.data
     assert b"Good intern fit" in response.data
     assert b"Save to tracker" in response.data
+    assert b"Write cover letter and apply" in response.data
 
     sample = (
         b"Ada Lovelace\nPython intern\n\nSkills\nPython, Flask, SQL, Git\n\n"
@@ -221,6 +252,35 @@ def test_web_tracker_save_and_list(tmp_path, monkeypatch):
     stats = client.get("/api/dashboard").get_json()
     assert stats["total"] == 1
     assert stats["counts"]["saved"] == 1
+
+
+def test_web_apply_writes_cover_letter(tmp_path, monkeypatch):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    monkeypatch.setattr("jobfinder.apply.APPLY_DIR", tmp_path / "packets")
+    app = create_app(resume_path="resume.example.txt")
+    client = app.test_client()
+    applied = client.post(
+        "/apply",
+        data={
+            "title": "Python Intern",
+            "company": "Acme",
+            "location": "Remote",
+            "url": "https://jobs.acme.test/1",
+            "source": "remotive",
+            "score": "90",
+            "description": "Python internship. Email jobs@acme.test",
+            "mark_applied": "on",
+        },
+        follow_redirects=True,
+    )
+    assert applied.status_code == 200
+    assert b"Python Intern" in applied.data
+    assert b"Ada Lovelace" in applied.data or b"cover letter" in applied.data.lower()
+    letter = client.get("/tracker/1/cover-letter.txt")
+    assert letter.status_code == 200
+    assert b"Python Intern" in letter.data
+    assert b"Acme" in letter.data
 
 
 def test_web_resume_pdf():

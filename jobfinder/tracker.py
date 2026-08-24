@@ -52,6 +52,11 @@ class TrackedJob:
     notes: str
     saved_at: str
     updated_at: str
+    cover_letter: str = ""
+    apply_email: str = ""
+    description: str = ""
+    applied_via: str = ""
+    applied_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -71,7 +76,29 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     connection.execute(_SCHEMA)
+    _migrate(connection)
     return connection
+
+
+def _migrate(connection: sqlite3.Connection) -> None:
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(applications)")}
+    columns = {
+        "cover_letter": "TEXT NOT NULL DEFAULT ''",
+        "apply_email": "TEXT NOT NULL DEFAULT ''",
+        "description": "TEXT NOT NULL DEFAULT ''",
+        "applied_via": "TEXT NOT NULL DEFAULT ''",
+        "applied_at": "TEXT NOT NULL DEFAULT ''",
+    }
+    for name, spec in columns.items():
+        if name not in existing:
+            connection.execute(f"ALTER TABLE applications ADD COLUMN {name} {spec}")
+
+
+def _cell(row: sqlite3.Row, name: str, default: str = "") -> str:
+    if name not in row.keys():
+        return default
+    value = row[name]
+    return default if value is None else value
 
 
 def _row(row: sqlite3.Row) -> TrackedJob:
@@ -88,6 +115,11 @@ def _row(row: sqlite3.Row) -> TrackedJob:
         notes=row["notes"] or "",
         saved_at=row["saved_at"],
         updated_at=row["updated_at"],
+        cover_letter=_cell(row, "cover_letter"),
+        apply_email=_cell(row, "apply_email"),
+        description=_cell(row, "description"),
+        applied_via=_cell(row, "applied_via"),
+        applied_at=_cell(row, "applied_at"),
     )
 
 
@@ -101,12 +133,19 @@ def save_job(
     status: str = "saved",
     score: float | None = None,
     notes: str = "",
+    cover_letter: str | None = None,
+    apply_email: str | None = None,
+    description: str | None = None,
+    applied_via: str | None = None,
+    applied_at: str | None = None,
     db_path: Path | None = None,
 ) -> TrackedJob:
     if status not in STATUSES:
         raise TrackerError(f"Unknown status {status!r}. Use one of: {', '.join(STATUSES)}")
     stamp = _now()
     key = job_key(job)
+    email = apply_email if apply_email is not None else (job.apply_email or "")
+    desc = description if description is not None else (job.description or "")
     with _connect(db_path) as connection:
         existing = connection.execute(
             "SELECT id FROM applications WHERE job_key = ?", (key,)
@@ -116,7 +155,12 @@ def save_job(
                 """
                 UPDATE applications
                 SET title=?, company=?, location=?, url=?, source=?,
-                    score=COALESCE(?, score), status=?, notes=?, updated_at=?
+                    score=COALESCE(?, score), status=?, notes=?, updated_at=?,
+                    cover_letter=COALESCE(?, cover_letter),
+                    apply_email=COALESCE(?, apply_email),
+                    description=COALESCE(?, description),
+                    applied_via=COALESCE(?, applied_via),
+                    applied_at=COALESCE(?, applied_at)
                 WHERE job_key=?
                 """,
                 (
@@ -129,6 +173,11 @@ def save_job(
                     status,
                     notes,
                     stamp,
+                    cover_letter,
+                    email or None,
+                    desc or None,
+                    applied_via,
+                    applied_at,
                     key,
                 ),
             )
@@ -138,8 +187,9 @@ def save_job(
                 """
                 INSERT INTO applications (
                     job_key, title, company, location, url, source,
-                    score, status, notes, saved_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    score, status, notes, saved_at, updated_at,
+                    cover_letter, apply_email, description, applied_via, applied_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     key,
@@ -153,6 +203,11 @@ def save_job(
                     notes,
                     stamp,
                     stamp,
+                    cover_letter or "",
+                    email,
+                    desc,
+                    applied_via or "",
+                    applied_at or "",
                 ),
             )
             row_id = cursor.lastrowid
@@ -222,6 +277,40 @@ def set_notes(entry_id: int, notes: str, db_path: Path | None = None) -> Tracked
         connection.execute(
             "UPDATE applications SET notes=?, updated_at=? WHERE id=?",
             (notes, _now(), entry_id),
+        )
+        changed = connection.execute("SELECT changes()").fetchone()[0]
+        if changed == 0:
+            raise TrackerError(f"No saved job with id {entry_id}")
+    return get_tracked(entry_id, db_path=db_path)
+
+
+def set_cover_letter(entry_id: int, cover_letter: str, db_path: Path | None = None) -> TrackedJob:
+    with _connect(db_path) as connection:
+        connection.execute(
+            "UPDATE applications SET cover_letter=?, updated_at=? WHERE id=?",
+            (cover_letter, _now(), entry_id),
+        )
+        changed = connection.execute("SELECT changes()").fetchone()[0]
+        if changed == 0:
+            raise TrackerError(f"No saved job with id {entry_id}")
+    return get_tracked(entry_id, db_path=db_path)
+
+
+def record_application(
+    entry_id: int,
+    *,
+    via: str,
+    db_path: Path | None = None,
+) -> TrackedJob:
+    stamp = _now()
+    with _connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE applications
+            SET status=?, applied_via=?, applied_at=?, updated_at=?
+            WHERE id=?
+            """,
+            ("applied", via, stamp, stamp, entry_id),
         )
         changed = connection.execute("SELECT changes()").fetchone()[0]
         if changed == 0:

@@ -39,6 +39,18 @@ AFFINE_MODEL = os.getenv("AFFINE_MODEL", AFFINE_S6_MODEL_ID)
 USER_AGENT = "Job-finder/0.1 (+https://github.com/Slrm1/Job-finder)"
 
 JOBFINDER_DB = Path(os.getenv("JOBFINDER_DB", str(ROOT_DIR / "jobs.db")))
+APPLY_DIR = Path(os.getenv("APPLY_DIR", str(ROOT_DIR / ".applications")))
+APPLY_FROM = os.getenv("APPLY_FROM", "").strip()
+APPLY_SMTP_HOST = os.getenv("APPLY_SMTP_HOST", "").strip()
+APPLY_SMTP_PORT = int(os.getenv("APPLY_SMTP_PORT", "587"))
+APPLY_SMTP_USER = os.getenv("APPLY_SMTP_USER", "").strip()
+APPLY_SMTP_PASSWORD = os.getenv("APPLY_SMTP_PASSWORD", "")
+APPLY_SMTP_TLS = os.getenv("APPLY_SMTP_TLS", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
 GREENHOUSE_BOARDS = [
     token.strip()
     for token in os.getenv(

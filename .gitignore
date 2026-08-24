@@ -15,6 +15,7 @@ build/
 hf_cache/
 *.gguf
 jobs.db
+.applications/
 *.log
 .DS_Store
 resume.pdf

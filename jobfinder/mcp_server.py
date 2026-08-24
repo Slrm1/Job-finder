@@ -61,6 +61,31 @@ TOOLS = [
         "description": "Return dashboard counts for the local application pipeline.",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "draft_cover_letter",
+        "description": "Write a cover letter for a saved job using the loaded resume.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
+    },
+    {
+        "name": "apply_job",
+        "description": (
+            "Draft a cover letter, save an application package, and optionally email it. "
+            "Set send=true to submit by email when a hiring address exists."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer"},
+                "send": {"type": "boolean"},
+                "mark_applied": {"type": "boolean"},
+            },
+            "required": ["id"],
+        },
+    },
 ]
 
 
@@ -135,6 +160,28 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> str:
         stats = dashboard_stats()
         stats["recent"] = [row.to_dict() for row in stats["recent"]]
         return json.dumps(stats, indent=2)
+    if name == "draft_cover_letter":
+        from jobfinder.apply import apply_to_tracked
+        from jobfinder.resume import resolve_profile
+
+        result = apply_to_tracked(
+            int(arguments["id"]),
+            resolve_profile(),
+            send=False,
+            mark_applied=False,
+        )
+        return json.dumps(result.to_dict(), indent=2)
+    if name == "apply_job":
+        from jobfinder.apply import apply_to_tracked
+        from jobfinder.resume import resolve_profile
+
+        result = apply_to_tracked(
+            int(arguments["id"]),
+            resolve_profile(),
+            send=bool(arguments.get("send")),
+            mark_applied=bool(arguments.get("mark_applied", True)),
+        )
+        return json.dumps(result.to_dict(), indent=2)
     raise ValueError(f"Unknown tool {name}")
 
 

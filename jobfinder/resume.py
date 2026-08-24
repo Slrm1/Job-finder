@@ -181,6 +181,7 @@ def parse_resume(text: str) -> dict[str, Any]:
         "name": name,
         "headline": headline,
         "location": location,
+        "email": _guess_email(text),
         "remote_ok": True,
         "experience_level": _experience_level(text),
         "skills": skills,
@@ -248,6 +249,7 @@ def _merge_profiles(base, resume):
         name=base.name or resume.name,
         headline=base.headline or resume.headline,
         location=base.location or resume.location,
+        email=base.email or resume.email,
         remote_ok=base.remote_ok,
         experience_level=base.experience_level or resume.experience_level,
         skills=skills,
@@ -345,6 +347,11 @@ def _guess_name(lines: list[str]) -> str:
             if not re.search(r"\d", line):
                 return line
     return ""
+
+
+def _guess_email(text: str) -> str:
+    match = re.search(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", text, re.I)
+    return match.group(0) if match else ""
 
 
 def _guess_location(text: str) -> str:

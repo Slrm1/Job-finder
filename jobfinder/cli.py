@@ -96,6 +96,27 @@ def cmd_search(args: argparse.Namespace) -> int:
 
         stored = save_ranked(ranked, limit=args.save)
         console.print(f"[green]Saved {len(stored)} jobs to the tracker.[/green]")
+    if getattr(args, "apply", None):
+        from jobfinder.apply import apply_ranked
+
+        applications = apply_ranked(
+            ranked,
+            profile,
+            limit=args.apply,
+            send=getattr(args, "send", False),
+            mark_applied=getattr(args, "mark_applied", False),
+            affine=args.affine,
+        )
+        sent = sum(1 for item in applications if item.submitted)
+        console.print(
+            f"[green]Drafted {len(applications)} cover letters"
+            + (f", submitted {sent}." if sent else ".")
+            + "[/green]"
+        )
+        for item in applications:
+            console.print(f"  #{item.tracked.id} {item.tracked.title} — {item.message}")
+            console.print()
+            console.print(item.cover_letter)
     _print_jobs(ranked, show_summary=bool(args.affine or args.verbose or getattr(args, "humanize", False)))
     console.print(f"\n{len(ranked)} jobs from public boards. Model: {AFFINE_S6_MODEL_ID}")
     return 0
@@ -164,6 +185,7 @@ def cmd_profile(args: argparse.Namespace) -> int:
     _describe_profile(profile)
     console.print(f"Headline: {profile.headline or '—'}")
     console.print(f"Location: {profile.location or '—'}")
+    console.print(f"Email:    {profile.email or '—'}")
     console.print(f"Level:    {profile.experience_level or '—'}")
     console.print("Skills:   " + (", ".join(profile.skills) or "—"))
     console.print("Keywords: " + (", ".join(profile.keywords) or "—"))
@@ -236,6 +258,48 @@ def cmd_pitch(args: argparse.Namespace) -> int:
     console.print(f"[dim]{result.backend} · {HUMANIZER_MODEL_ID}[/dim]")
     console.print(result.text())
     return 0
+
+
+def cmd_apply(args: argparse.Namespace) -> int:
+    from jobfinder.apply import apply_to_tracked
+    from jobfinder.tracker import list_tracked
+
+    profile = _load_profile(args)
+    if not profile.resume_text and not profile.name:
+        console.print("[yellow]No resume loaded. Pass --resume PATH for a stronger letter.[/yellow]")
+    if args.id is not None:
+        ids = [args.id]
+    elif args.saved:
+        ids = [row.id for row in list_tracked(status="saved")]
+    else:
+        console.print("[red]Pass a tracker id, or --saved to apply to every saved job.[/red]")
+        return 1
+    if not ids:
+        console.print("No saved jobs to apply to. Search with --apply 3 first.")
+        return 1
+    failures = 0
+    for entry_id in ids:
+        try:
+            result = apply_to_tracked(
+                entry_id,
+                profile,
+                send=args.send,
+                mark_applied=args.mark_applied,
+                affine=args.affine,
+            )
+        except Exception as exc:
+            console.print(f"[red]#{entry_id}: {exc}[/red]")
+            failures += 1
+            continue
+        status = "sent" if result.submitted else result.method
+        console.print(
+            f"[bold]#{result.tracked.id} {result.tracked.title}[/bold] — "
+            f"{result.tracked.company} [{status}]"
+        )
+        console.print(result.message)
+        console.print()
+        console.print(result.cover_letter)
+    return 1 if failures else 0
 
 
 def cmd_dashboard(_: argparse.Namespace) -> int:
@@ -338,6 +402,22 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Save the top N matches to the local application tracker",
     )
+    search.add_argument(
+        "--apply",
+        type=int,
+        metavar="N",
+        help="Draft cover letters and application packages for the top N matches",
+    )
+    search.add_argument(
+        "--send",
+        action="store_true",
+        help="Email cover letters when a hiring address is found (needs SMTP)",
+    )
+    search.add_argument(
+        "--mark-applied",
+        action="store_true",
+        help="Mark packaged applications as applied even if email was not sent",
+    )
     search.set_defaults(func=cmd_search)
 
     rank = sub.add_parser("rank", help="Search, then re-rank with Affine-S6")
@@ -348,6 +428,9 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--verbose", action="store_true")
     rank.add_argument("--humanize", action="store_true")
     rank.add_argument("--save", type=int, metavar="N")
+    rank.add_argument("--apply", type=int, metavar="N")
+    rank.add_argument("--send", action="store_true")
+    rank.add_argument("--mark-applied", action="store_true")
     rank.set_defaults(func=cmd_rank)
 
     preview = sub.add_parser("profile", help="Show the profile parsed from your resume")
@@ -380,6 +463,34 @@ def build_parser() -> argparse.ArgumentParser:
     pitch.add_argument("--sources")
     _add_candidate_flags(pitch)
     pitch.set_defaults(func=cmd_pitch)
+
+    apply_cmd = sub.add_parser(
+        "apply",
+        help="Write a cover letter and submit or package the application",
+    )
+    apply_cmd.add_argument("id", nargs="?", type=int, help="Tracker id from jobfinder track list")
+    apply_cmd.add_argument(
+        "--saved",
+        action="store_true",
+        help="Apply to every job still in saved status",
+    )
+    apply_cmd.add_argument(
+        "--send",
+        action="store_true",
+        help="Email the letter when a hiring address exists (APPLY_SMTP_HOST)",
+    )
+    apply_cmd.add_argument(
+        "--mark-applied",
+        action="store_true",
+        help="Set status to applied after writing the package",
+    )
+    apply_cmd.add_argument(
+        "--affine",
+        action="store_true",
+        help="Draft the letter with Affine-S6 when a backend is configured",
+    )
+    _add_candidate_flags(apply_cmd)
+    apply_cmd.set_defaults(func=cmd_apply)
 
     track = sub.add_parser("track", help="Local application tracker (JobSync-style)")
     from jobfinder.tracker import STATUSES as TRACK_STATUSES

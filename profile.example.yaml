@@ -2,6 +2,7 @@
 # Affine-S6 uses this to rank jobs and write fit notes.
 
 name: Ada Lovelace
+email: ada@example.com
 headline: New-grad software engineer interested in backend, ML, and developer tools
 location: Washington, DC
 remote_ok: true

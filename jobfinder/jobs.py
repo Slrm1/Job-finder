@@ -31,6 +31,7 @@ class Job:
     tags: list[str] = field(default_factory=list)
     salary: str | None = None
     posted_at: str | None = None
+    apply_email: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -101,6 +102,40 @@ def _job_id(*parts: str) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
+_EMAIL_RE = re.compile(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", re.I)
+_SKIP_EMAIL_DOMAINS = (
+    "example.com",
+    "example.org",
+    "sentry.io",
+    "w3.org",
+    "schema.org",
+    "github.com",
+    "githubusercontent.com",
+)
+_SKIP_EMAIL_LOCAL = {"noreply", "no-reply", "donotreply", "do-not-reply"}
+
+
+def extract_apply_email(*parts: str) -> str:
+    """Best-effort hiring email from a listing URL or description."""
+    blob = " ".join(part or "" for part in parts)
+    mailto = re.search(r"mailto:([^?\s>]+)", blob, re.I)
+    candidates = []
+    if mailto:
+        candidates.append(mailto.group(1))
+    candidates.extend(_EMAIL_RE.findall(blob))
+    for raw in candidates:
+        email = html.unescape(raw).strip(".,;<>()[]")
+        if "@" not in email:
+            continue
+        local, _, domain = email.lower().partition("@")
+        if local in _SKIP_EMAIL_LOCAL:
+            continue
+        if any(domain == skip or domain.endswith("." + skip) for skip in _SKIP_EMAIL_DOMAINS):
+            continue
+        return email
+    return ""
+
+
 def fetch_remotive(query: str, limit: int = 25) -> list[Job]:
     params = {"search": query} if query else {}
     url = "https://remotive.com/api/remote-jobs"
@@ -128,6 +163,9 @@ def fetch_remotive(query: str, limit: int = 25) -> list[Job]:
                 tags=tags,
                 salary=item.get("salary") or None,
                 posted_at=item.get("publication_date"),
+                apply_email=extract_apply_email(
+                    description, item.get("url") or "", item.get("short_url") or ""
+                ),
             )
         )
         if len(jobs) >= limit:
@@ -160,6 +198,7 @@ def fetch_arbeitnow(query: str, limit: int = 25) -> list[Job]:
                 source="arbeitnow",
                 tags=tags,
                 posted_at=str(item.get("created_at") or "") or None,
+                apply_email=extract_apply_email(description, item.get("url") or ""),
             )
         )
         if len(jobs) >= limit:
@@ -195,6 +234,9 @@ def fetch_remoteok(query: str, limit: int = 25) -> list[Job]:
                 tags=tags,
                 salary=_remoteok_salary(item),
                 posted_at=_epoch_to_iso(item.get("epoch") or item.get("date")),
+                apply_email=extract_apply_email(
+                    description, item.get("url") or "", item.get("apply_url") or ""
+                ),
             )
         )
         if len(jobs) >= limit:
@@ -233,6 +275,7 @@ def fetch_greenhouse(query: str, limit: int = 25) -> list[Job]:
                     description="",
                     source="greenhouse",
                     posted_at=item.get("updated_at"),
+                    apply_email="",
                 )
             )
             if len(jobs) >= limit:

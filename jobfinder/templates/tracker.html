@@ -46,6 +46,13 @@
       cursor: pointer;
     }
     .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+    .letter {
+      white-space: pre-wrap;
+      background: #101821;
+      border-radius: 10px;
+      padding: .8rem 1rem;
+      font-size: .95rem;
+    }
     .pill {
       display: inline-block;
       background: #243246;
@@ -62,8 +69,8 @@
     {% include "nav.html" %}
     <h1>Application tracker</h1>
     <p class="lede">
-      Saved locally, in the JobSync style: keep score, status, and notes without sending
-      your pipeline to a third-party site.
+      Saved locally: score, status, cover letters, and optional email send.
+      Company career-page forms still need the listing opened so you can paste the letter.
     </p>
     <p>
       {% for name, n in counts.items() %}
@@ -80,7 +87,13 @@
           {% if row.score is not none %} · score {{ row.score|int }}{% endif %}
         </p>
         {% if row.url %}<p><a href="{{ row.url }}" target="_blank" rel="noopener">Open listing</a></p>{% endif %}
+        {% if row.apply_email %}<p class="meta">Hiring email: {{ row.apply_email }}</p>{% endif %}
+        {% if row.applied_via %}<p class="meta">Submitted via {{ row.applied_via }}{% if row.applied_at %} · {{ row.applied_at }}{% endif %}</p>{% endif %}
         {% if row.notes %}<p>{{ row.notes }}</p>{% endif %}
+        {% if row.cover_letter %}
+          <pre class="letter">{{ row.cover_letter }}</pre>
+          <p><a href="{{ url_for('tracker_cover_letter', entry_id=row.id) }}">Download cover letter</a></p>
+        {% endif %}
         <div class="row">
           <form method="post" action="{{ url_for('tracker_status', entry_id=row.id) }}">
             <select name="status" onchange="this.form.submit()">
@@ -88,6 +101,13 @@
               <option value="{{ status }}" {% if row.status == status %}selected{% endif %}>{{ status }}</option>
               {% endfor %}
             </select>
+          </form>
+          <form method="post" action="{{ url_for('tracker_apply', entry_id=row.id) }}">
+            {% if smtp_ready %}
+            <label class="meta"><input type="checkbox" name="send"> Send email</label>
+            {% endif %}
+            <label class="meta"><input type="checkbox" name="mark_applied" checked> Mark applied</label>
+            <button type="submit">{% if row.cover_letter %}Submit application{% else %}Write cover letter and apply{% endif %}</button>
           </form>
           <form method="post" action="{{ url_for('tracker_remove', entry_id=row.id) }}">
             <button type="submit">Remove</button>

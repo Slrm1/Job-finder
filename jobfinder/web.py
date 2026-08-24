@@ -14,7 +14,7 @@ from jobfinder.config import (
     HUMANIZER_MODEL_ID,
     HUMANIZER_URL,
 )
-from jobfinder.jobs import DEFAULT_SOURCES, SOURCES, Job, search_jobs
+from jobfinder.jobs import DEFAULT_SOURCES, SOURCES, Job, extract_apply_email, search_jobs
 from jobfinder.match import rank_jobs, rank_jobs_with_affine
 from jobfinder.resume import ResumeError, read_resume_bytes, resolve_profile
 
@@ -35,6 +35,21 @@ def _profile_from_request(profile_path: str | None, resume_path: str | None):
     return _base_profile(profile_path, resume_path)
 
 
+def _job_from_form() -> Job:
+    description = request.form.get("description") or ""
+    url = request.form.get("url") or ""
+    return Job(
+        id=request.form.get("job_id") or "web",
+        title=request.form.get("title") or "Untitled",
+        company=request.form.get("company") or "Unknown",
+        location=request.form.get("location") or "",
+        url=url,
+        description=description,
+        source=request.form.get("source") or "web",
+        apply_email=extract_apply_email(description, url),
+    )
+
+
 def create_app(
     profile_path: str | None = None, resume_path: str | None = None
 ) -> Flask:
@@ -42,6 +57,11 @@ def create_app(
     app.config["PROFILE_PATH"] = profile_path
     app.config["RESUME_PATH"] = resume_path
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+
+    def _smtp_ready() -> bool:
+        from jobfinder.apply import smtp_ready
+
+        return smtp_ready()
 
     def _template(**extra):
         profile = extra.get("profile") or _base_profile(profile_path, resume_path)
@@ -61,6 +81,7 @@ def create_app(
             humanize_input="",
             humanize_output="",
             humanize_backend="",
+            smtp_ready=_smtp_ready(),
         )
         payload.update(extra)
         return render_template("index.html", **payload)
@@ -121,15 +142,7 @@ def create_app(
     def track_save():
         from jobfinder.tracker import TrackerError, save_job
 
-        job = Job(
-            id=request.form.get("job_id") or "web",
-            title=request.form.get("title") or "Untitled",
-            company=request.form.get("company") or "Unknown",
-            location=request.form.get("location") or "",
-            url=request.form.get("url") or "",
-            description=request.form.get("description") or "",
-            source=request.form.get("source") or "web",
-        )
+        job = _job_from_form()
         try:
             score = float(request.form["score"]) if request.form.get("score") else None
         except ValueError:
@@ -142,6 +155,28 @@ def create_app(
                 notes=request.form.get("notes") or "",
             )
         except TrackerError as exc:
+            return _template(error=str(exc), results=[])
+        return redirect(url_for("tracker"))
+
+    @app.post("/apply")
+    def apply_from_search():
+        from jobfinder.apply import apply_to_job
+
+        job = _job_from_form()
+        try:
+            score = float(request.form["score"]) if request.form.get("score") else None
+        except ValueError:
+            score = None
+        try:
+            profile = _profile_from_request(profile_path, resume_path)
+            apply_to_job(
+                job,
+                profile,
+                send=request.form.get("send") == "on",
+                mark_applied=request.form.get("mark_applied") == "on",
+                score=score,
+            )
+        except Exception as exc:
             return _template(error=str(exc), results=[])
         return redirect(url_for("tracker"))
 
@@ -164,6 +199,7 @@ def create_app(
             statuses=STATUSES,
             counts=counts(),
             filter_status=status,
+            smtp_ready=_smtp_ready(),
         )
 
     @app.get("/dashboard")
@@ -214,6 +250,38 @@ def create_app(
         payload = dict(stats)
         payload["recent"] = [row.to_dict() for row in stats["recent"]]
         return jsonify(payload)
+
+    @app.post("/tracker/<int:entry_id>/apply")
+    def tracker_apply(entry_id: int):
+        from jobfinder.apply import apply_to_tracked
+
+        try:
+            profile = _base_profile(profile_path, resume_path)
+            apply_to_tracked(
+                entry_id,
+                profile,
+                send=request.form.get("send") == "on",
+                mark_applied=request.form.get("mark_applied") == "on",
+            )
+        except Exception as exc:
+            return _template(error=str(exc), results=[])
+        return redirect(url_for("tracker"))
+
+    @app.get("/tracker/<int:entry_id>/cover-letter.txt")
+    def tracker_cover_letter(entry_id: int):
+        from jobfinder.tracker import TrackerError, get_tracked
+
+        try:
+            row = get_tracked(entry_id)
+        except TrackerError as exc:
+            return _template(error=str(exc), results=[]), 404
+        data = (row.cover_letter or "No cover letter drafted yet.\n").encode("utf-8")
+        return send_file(
+            BytesIO(data),
+            mimetype="text/plain",
+            as_attachment=True,
+            download_name=f"cover-letter-{entry_id}.txt",
+        )
 
     @app.post("/tracker/<int:entry_id>/status")
     def tracker_status(entry_id: int):

@@ -18,7 +18,7 @@ def _remotive_payload():
                 "company_name": "Acme",
                 "candidate_required_location": "Remote",
                 "url": "https://example.com/jobs/1",
-                "description": "<p>Build APIs in Python</p>",
+                "description": "<p>Build APIs in Python. Apply: mailto:jobs@acme.test</p>",
                 "tags": ["python", "backend"],
                 "salary": "120k",
                 "publication_date": "2026-01-01",
@@ -50,6 +50,7 @@ def test_fetch_remotive(monkeypatch):
     assert "Build APIs" in jobs[0].description
     assert "<p>" not in jobs[0].description
     assert jobs[0].source == "remotive"
+    assert jobs[0].apply_email == "jobs@acme.test"
 
 
 def test_fetch_arbeitnow_filters_query(monkeypatch):

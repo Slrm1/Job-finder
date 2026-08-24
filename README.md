@@ -104,24 +104,49 @@ Listings come from public JSON APIs (no account required):
 
 You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords or things to avoid. If both a resume and a YAML profile exist, they are merged.
 
+## Apply with a cover letter
+
+The AI writes a cover letter from your resume, saves it with the job, and submits it when it can:
+
+1. **Email** — if the listing has a hiring address and you set SMTP in `.env`, `--send` emails the letter plus your resume PDF.
+2. **Application package** — otherwise it writes `.applications/<id>-company-role/` with `cover-letter.txt`, `resume.pdf`, and `application.eml` you can send yourself.
+3. **Career-page forms** (Greenhouse, Lever, Workday, and similar) are not auto-filled. Those sites do not offer a public “submit this candidate” API, so the letter is drafted for you to paste on the listing.
+
+```bash
+jobfinder search "python intern" --resume resume.example.txt --apply 3
+jobfinder apply 1 --send
+jobfinder apply --saved --mark-applied
+```
+
+SMTP (optional, only needed to send mail from the CLI/web):
+
+```
+APPLY_FROM=you@example.com
+APPLY_SMTP_HOST=smtp.example.com
+APPLY_SMTP_PORT=587
+APPLY_SMTP_USER=you@example.com
+APPLY_SMTP_PASSWORD=...
+```
+
+On the web UI, use **Write cover letter and apply** on a listing or **Submit application** on the tracker. Cover letters stay on the tracker and download as `.txt`.
+
 ## JobSync-style tracker, dashboard, and MCP
 
-[JobSync](https://github.com/Gsync/jobsync) is a full self-hosted Next.js app. It is **not** a library this Python project can import, so the whole app is not vendored here. Job-finder implements the same local workflow in Python: **save a role, set a status, keep notes, see pipeline stats, export a resume PDF, and talk to agents over MCP**.
+[JobSync](https://github.com/Gsync/jobsync) is a full self-hosted Next.js app. It is **not** a library this Python project can import, so the whole app is not vendored here. Job-finder implements the same local workflow in Python: **save a role, write a cover letter, submit when a hiring email exists, set a status, see pipeline stats, export a resume PDF, and talk to agents over MCP**.
 
 ```bash
 jobfinder search "python intern" --resume resume.example.txt --save 5
+jobfinder apply 1 --mark-applied
 jobfinder track list
-jobfinder track status 1 applied
-jobfinder track note 1 "emailed the recruiter"
 jobfinder dashboard
 jobfinder resume-pdf --resume resume.example.txt -o ada.pdf --template professional
 ```
 
 On the web UI (`jobfinder serve`):
 
-- **Search** — rank listings and click **Save to tracker**
+- **Search** — rank listings, save them, or write a cover letter and apply
 - **Dashboard** — pipeline counts, apply/interview/offer rates, recent jobs
-- **Tracker** — change status or remove a saved job
+- **Tracker** — status, cover letters, email/package submit
 - **Resume PDF** — download a simple or professional PDF from your loaded resume
 
 JSON is also available at `/api/jobs` and `/api/dashboard`. Applications are stored in local SQLite (`jobs.db`, or `JOBFINDER_DB`).
@@ -136,7 +161,7 @@ Agents can add and update saved jobs without opening the UI:
 jobfinder mcp
 ```
 
-That speaks JSON-RPC on stdin/stdout (`initialize`, `tools/list`, `tools/call`). Tools: `add_job`, `list_jobs`, `set_status`, `pipeline_stats`.
+That speaks JSON-RPC on stdin/stdout (`initialize`, `tools/list`, `tools/call`). Tools: `add_job`, `list_jobs`, `set_status`, `pipeline_stats`, `draft_cover_letter`, `apply_job`.
 
 Example Claude Desktop config (after `pip install -e .`):
 

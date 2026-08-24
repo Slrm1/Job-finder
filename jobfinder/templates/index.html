@@ -191,7 +191,23 @@
             <input type="hidden" name="source" value="{{ item.job.source }}">
             <input type="hidden" name="score" value="{{ item.score }}">
             <input type="hidden" name="notes" value="{{ item.summary }}">
+            <textarea name="description" hidden>{{ item.job.description[:2000] }}</textarea>
             <button class="ghost" type="submit">Save to tracker</button>
+          </form>
+          <form method="post" action="{{ url_for('apply_from_search') }}" style="margin-top:.5rem">
+            <input type="hidden" name="job_id" value="{{ item.job.id }}">
+            <input type="hidden" name="title" value="{{ item.job.title }}">
+            <input type="hidden" name="company" value="{{ item.job.company }}">
+            <input type="hidden" name="location" value="{{ item.job.location }}">
+            <input type="hidden" name="url" value="{{ item.job.url }}">
+            <input type="hidden" name="source" value="{{ item.job.source }}">
+            <input type="hidden" name="score" value="{{ item.score }}">
+            <textarea name="description" hidden>{{ item.job.description[:2000] }}</textarea>
+            {% if smtp_ready %}
+            <label class="meta"><input type="checkbox" name="send"> Email if a hiring address is found</label>
+            {% endif %}
+            <label class="meta"><input type="checkbox" name="mark_applied"> Mark as applied</label>
+            <button type="submit">Write cover letter and apply</button>
           </form>
         </article>
       {% endfor %}
