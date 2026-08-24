@@ -253,6 +253,12 @@ def test_web_index_and_search(monkeypatch):
     assert b"mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in home.data
     assert b"Dashboard" in home.data
     assert b"Tracker" in home.data
+    assert b"/static/app.css" in home.data
+    css = client.get("/static/app.css")
+    assert css.status_code == 200
+    assert css.mimetype == "text/css"
+    assert b"--accent" in css.data
+    assert b"Job-finder" in home.data
 
     ranked = RankedJob(job=job, score=90, summary="Good intern fit", method="keywords")
     monkeypatch.setattr(

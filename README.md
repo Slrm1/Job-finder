@@ -243,10 +243,12 @@ jobfinder dashboard
 jobfinder resume-pdf --resume resume.example.txt -o ada.pdf --template professional
 ```
 
-On the web UI (`jobfinder serve`):
+On the web UI (`jobfinder serve` → http://127.0.0.1:5000):
+
+The Flask frontend is a paper-and-ink layout with Search, Dashboard, and Tracker. Upload a resume, rank listings, save them, and export a PDF without a separate Node app.
 
 - **Search** — rank listings, save them, or write a cover letter and apply
-- **Dashboard** — pipeline counts, apply/interview/offer rates, recent jobs
+- **Dashboard** — pipeline counts, apply/interview/offer rates, follow-ups, recent jobs
 - **Tracker** — status, cover letters, email/package submit
 - **Resume PDF** — download a simple or professional PDF from your loaded resume
 

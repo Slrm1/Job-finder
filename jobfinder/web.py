@@ -11,12 +11,15 @@ from flask import Flask, jsonify, redirect, render_template, request, send_file,
 from jobfinder.config import (
     AFFINE_S6_MODEL_ID,
     AFFINE_S6_URL,
+    FOLLOWUP_DAYS,
     HUMANIZER_MODEL_ID,
     HUMANIZER_URL,
 )
 from jobfinder.jobs import DEFAULT_SOURCES, SOURCES, Job, extract_apply_email, search_jobs
 from jobfinder.match import rank_jobs, rank_jobs_with_affine
 from jobfinder.resume import ResumeError, read_resume_bytes, resolve_profile
+
+_PKG = Path(__file__).resolve().parent
 
 
 def _base_profile(profile_path: str | None, resume_path: str | None):
@@ -53,10 +56,23 @@ def _job_from_form() -> Job:
 def create_app(
     profile_path: str | None = None, resume_path: str | None = None
 ) -> Flask:
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder=str(_PKG / "templates"),
+        static_folder=str(_PKG / "static"),
+    )
     app.config["PROFILE_PATH"] = profile_path
     app.config["RESUME_PATH"] = resume_path
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+
+    @app.context_processor
+    def _brand():
+        return {
+            "model_id": AFFINE_S6_MODEL_ID,
+            "model_url": AFFINE_S6_URL,
+            "humanizer_id": HUMANIZER_MODEL_ID,
+            "humanizer_url": HUMANIZER_URL,
+        }
 
     def _smtp_ready() -> bool:
         from jobfinder.apply import smtp_ready
@@ -66,6 +82,7 @@ def create_app(
     def _template(**extra):
         profile = extra.get("profile") or _base_profile(profile_path, resume_path)
         payload = dict(
+            page="search",
             model_id=AFFINE_S6_MODEL_ID,
             model_url=AFFINE_S6_URL,
             humanizer_id=HUMANIZER_MODEL_ID,
@@ -196,6 +213,7 @@ def create_app(
             return _template(error=str(exc), results=[])
         return render_template(
             "tracker.html",
+            page="tracker",
             model_id=AFFINE_S6_MODEL_ID,
             model_url=AFFINE_S6_URL,
             humanizer_id=HUMANIZER_MODEL_ID,
@@ -209,15 +227,19 @@ def create_app(
 
     @app.get("/dashboard")
     def dashboard():
+        from jobfinder.followup import due_followups
         from jobfinder.tracker import dashboard_stats
 
         return render_template(
             "dashboard.html",
+            page="dashboard",
             model_id=AFFINE_S6_MODEL_ID,
             model_url=AFFINE_S6_URL,
             humanizer_id=HUMANIZER_MODEL_ID,
             humanizer_url=HUMANIZER_URL,
             stats=dashboard_stats(),
+            followups=due_followups(),
+            followup_days=FOLLOWUP_DAYS,
         )
 
     @app.get("/resume.pdf")

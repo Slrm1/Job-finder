@@ -47,7 +47,7 @@ Humanizer = "https://huggingface.co/mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF"
 include = ["jobfinder*"]
 
 [tool.setuptools.package-data]
-jobfinder = ["templates/*.html"]
+jobfinder = ["templates/*.html", "static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

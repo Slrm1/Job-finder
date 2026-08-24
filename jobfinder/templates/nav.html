@@ -1,6 +1,15 @@
-<nav>
-  <a href="{{ url_for('index') }}">Search</a>
-  <a href="{{ url_for('dashboard') }}">Dashboard</a>
-  <a href="{{ url_for('tracker') }}">Tracker</a>
-  <a href="{{ url_for('resume_pdf') }}">Resume PDF</a>
-</nav>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('index') }}">
+    <span class="mark" aria-hidden="true">J</span>
+    <span>
+      <strong>Job-finder</strong>
+      <span>Affine-S6</span>
+    </span>
+  </a>
+  <nav class="nav" aria-label="Primary">
+    <a href="{{ url_for('index') }}" class="{% if page == 'search' %}active{% endif %}">Search</a>
+    <a href="{{ url_for('dashboard') }}" class="{% if page == 'dashboard' %}active{% endif %}">Dashboard</a>
+    <a href="{{ url_for('tracker') }}" class="{% if page == 'tracker' %}active{% endif %}">Tracker</a>
+    <a href="{{ url_for('resume_pdf') }}">Resume PDF</a>
+  </nav>
+</header>

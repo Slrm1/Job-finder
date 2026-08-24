@@ -1,90 +1,75 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard · Job-finder</title>
-  <style>
-    :root {
-      --bg: #0f1419;
-      --card: #1a2330;
-      --ink: #e7ecf3;
-      --muted: #9aa8b8;
-      --accent: #6ea8fe;
-      --good: #3dd68c;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-      background: radial-gradient(1200px 600px at 10% -10%, #1c3354 0%, var(--bg) 55%);
-      color: var(--ink);
-    }
-    main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-    a { color: var(--accent); }
-    nav { margin-bottom: 1.25rem; }
-    nav a { margin-right: 1rem; }
-    h1 { margin: 0 0 .35rem; }
-    .lede { color: var(--muted); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; margin: 1.2rem 0; }
-    .stat {
-      background: var(--card);
-      border: 1px solid #2b3b50;
-      border-radius: 14px;
-      padding: 1rem;
-    }
-    .stat strong { display: block; font-size: 1.6rem; color: var(--good); }
-    .meta { color: var(--muted); font-size: .9rem; }
-    .job {
-      background: var(--card);
-      border: 1px solid #2b3b50;
-      border-radius: 14px;
-      padding: 1rem 1.1rem;
-      margin-top: .8rem;
-    }
-    .bar {
-      height: 10px;
-      background: #243246;
-      border-radius: 999px;
-      overflow: hidden;
-      margin-top: .35rem;
-    }
-    .bar span { display: block; height: 100%; background: var(--accent); }
-  </style>
-</head>
-<body>
-  <main>
-    {% include "nav.html" %}
-    <h1>Dashboard</h1>
-    <p class="lede">Pipeline snapshot for your saved applications.</p>
-    <div class="grid">
-      <div class="stat"><span class="meta">Saved</span><strong>{{ stats.total }}</strong></div>
-      <div class="stat"><span class="meta">Moved forward</span><strong>{{ stats.applied }}</strong></div>
-      <div class="stat"><span class="meta">Interviews</span><strong>{{ stats.interviews }}</strong></div>
-      <div class="stat"><span class="meta">Offers</span><strong>{{ stats.offers }}</strong></div>
-    </div>
-    <p class="meta">Apply rate {{ stats.apply_rate }}% · interview rate {{ stats.interview_rate }}% · offer rate {{ stats.offer_rate }}%</p>
-    <p>
-      <a href="{{ url_for('resume_pdf', template='simple') }}">Simple resume PDF</a>
-      ·
-      <a href="{{ url_for('resume_pdf', template='professional') }}">Professional resume PDF</a>
-    </p>
-    {% for name, n in stats.counts.items() %}
+{% extends "base.html" %}
+{% block title %}Dashboard · Job-finder{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Pipeline</p>
+  <h1>Dashboard</h1>
+  <p class="lede">Pipeline snapshot for your saved applications, plus resume exports.</p>
+</section>
+
+<div class="grid">
+  <div class="stat"><span class="meta">Saved</span><strong>{{ stats.total }}</strong></div>
+  <div class="stat"><span class="meta">Moved forward</span><strong>{{ stats.applied }}</strong></div>
+  <div class="stat"><span class="meta">Interviews</span><strong>{{ stats.interviews }}</strong></div>
+  <div class="stat"><span class="meta">Offers</span><strong>{{ stats.offers }}</strong></div>
+</div>
+<p class="meta">Apply rate {{ stats.apply_rate }}% · interview rate {{ stats.interview_rate }}% · offer rate {{ stats.offer_rate }}%</p>
+
+<div class="actions" style="margin: 1rem 0 1.5rem">
+  <a class="btn ghost" href="{{ url_for('resume_pdf', template='simple') }}">Simple resume PDF</a>
+  <a class="btn" href="{{ url_for('resume_pdf', template='professional') }}">Professional resume PDF</a>
+  <a class="btn ghost" href="{{ url_for('tracker') }}">Open tracker</a>
+</div>
+
+<div class="panel">
+  <h2>By status</h2>
+  {% for name, n in stats.counts.items() %}
+    <div class="status-row">
+      <div class="status-row-head">
+        <span class="status status-{{ name }}">{{ name }}</span>
+        <span class="meta">{{ n }}</span>
+      </div>
       {% if stats.total %}
-      <p class="meta">{{ name }}</p>
       <div class="bar"><span style="width: {{ (n / stats.total * 100)|round(1) }}%"></span></div>
       {% endif %}
-    {% endfor %}
-    <h2>Recent</h2>
-    {% for row in stats.recent %}
-      <article class="job">
-        <strong>{{ row.title }}</strong>
-        <p class="meta">{{ row.company }} · {{ row.status }}{% if row.score is not none %} · {{ row.score|int }}{% endif %}</p>
-      </article>
-    {% endfor %}
-    {% if stats.recent|length == 0 %}
-      <p class="lede">Save jobs from Search to populate this dashboard.</p>
-    {% endif %}
-  </main>
-</body>
-</html>
+    </div>
+  {% endfor %}
+  {% if not stats.total %}
+    <p class="meta">Nothing saved yet.</p>
+  {% endif %}
+</div>
+
+{% if followups %}
+<div class="panel" style="margin-top:1rem">
+  <h2>Follow-ups due</h2>
+  <p class="meta">Applied more than {{ followup_days }} days ago with no status change.</p>
+  {% for row in followups %}
+    <article class="job">
+      <h3>{{ row.title }}</h3>
+      <p class="meta">{{ row.company }} · applied {{ row.applied_at[:10] if row.applied_at else "earlier" }}</p>
+      <a href="{{ url_for('tracker') }}">Open in tracker</a>
+    </article>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2 class="results-head" style="display:block;margin-top:1.8rem">Recent</h2>
+{% for row in stats.recent %}
+  <article class="job">
+    <div class="job-top">
+      <div>
+        <h3>{{ row.title }}</h3>
+        <p class="meta">{{ row.company }} · {{ row.location }}</p>
+      </div>
+      <span class="status status-{{ row.status }}">{{ row.status }}</span>
+    </div>
+    {% if row.score is not none %}<p class="meta">Score {{ row.score|int }}</p>{% endif %}
+  </article>
+{% endfor %}
+{% if stats.recent|length == 0 %}
+  <div class="empty">
+    <b>Save jobs from Search to populate this dashboard.</b>
+    Rank a query, then pin the ones worth tracking.
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,121 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tracker · Job-finder</title>
-  <style>
-    :root {
-      --bg: #0f1419;
-      --card: #1a2330;
-      --ink: #e7ecf3;
-      --muted: #9aa8b8;
-      --accent: #6ea8fe;
-      --good: #3dd68c;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-      background: radial-gradient(1200px 600px at 10% -10%, #1c3354 0%, var(--bg) 55%);
-      color: var(--ink);
-    }
-    main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-    a { color: var(--accent); }
-    nav { margin-bottom: 1.25rem; }
-    nav a { margin-right: 1rem; }
-    h1 { margin: 0 0 .35rem; }
-    .lede { color: var(--muted); }
-    .job {
-      background: var(--card);
-      border: 1px solid #2b3b50;
-      border-radius: 14px;
-      padding: 1rem 1.1rem;
-      margin-top: 1rem;
-    }
-    .meta { color: var(--muted); font-size: .9rem; }
-    select, button {
-      font: inherit;
-      border-radius: 999px;
-      padding: .35rem .8rem;
-    }
-    button {
-      background: transparent;
-      color: var(--accent);
-      border: 1px solid #33455c;
-      cursor: pointer;
-    }
-    .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
-    .letter {
-      white-space: pre-wrap;
-      background: #101821;
-      border-radius: 10px;
-      padding: .8rem 1rem;
-      font-size: .95rem;
-    }
-    .pill {
-      display: inline-block;
-      background: #243246;
-      color: var(--muted);
-      border-radius: 999px;
-      padding: .1rem .55rem;
-      font-size: .75rem;
-      margin-right: .3rem;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    {% include "nav.html" %}
-    <h1>Application tracker</h1>
-    <p class="lede">
-      Saved locally: score, status, cover letters, and optional email send.
-      Company career-page forms still need the listing opened so you can paste the letter.
-    </p>
-    <p>
-      {% for name, n in counts.items() %}
-        {% if n %}
-        <a class="pill" href="{{ url_for('tracker', status=name) }}">{{ name }} {{ n }}</a>
-        {% endif %}
-      {% endfor %}
-      <a class="pill" href="{{ url_for('tracker') }}">all</a>
-    </p>
-    {% for row in rows %}
-      <article class="job">
+{% extends "base.html" %}
+{% block title %}Tracker · Job-finder{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Saved locally</p>
+  <h1>Application tracker</h1>
+  <p class="lede">
+    Saved locally: score, status, cover letters, and optional email send.
+    Company career-page forms still need the listing opened so you can paste the letter.
+  </p>
+</section>
+
+<div class="filters">
+  {% for name, n in counts.items() %}
+    {% if n %}
+    <a class="pill {% if filter_status == name %}active{% endif %}" href="{{ url_for('tracker', status=name) }}">{{ name }} {{ n }}</a>
+    {% endif %}
+  {% endfor %}
+  <a class="pill {% if not filter_status %}active{% endif %}" href="{{ url_for('tracker') }}">all</a>
+</div>
+
+{% for row in rows %}
+  <article class="job">
+    <div class="job-top">
+      <div>
         <h2>{{ row.title }}</h2>
-        <p class="meta">{{ row.company }} · {{ row.location }} · {{ row.source }} · {{ row.status }}
+        <p class="meta">{{ row.company }} · {{ row.location }} · {{ row.source }}
           {% if row.score is not none %} · score {{ row.score|int }}{% endif %}
         </p>
-        {% if row.url %}<p><a href="{{ row.url }}" target="_blank" rel="noopener">Open listing</a></p>{% endif %}
-        {% if row.apply_email %}<p class="meta">Hiring email: {{ row.apply_email }}</p>{% endif %}
-        {% if row.applied_via %}<p class="meta">Submitted via {{ row.applied_via }}{% if row.applied_at %} · {{ row.applied_at }}{% endif %}</p>{% endif %}
-        {% if row.notes %}<p>{{ row.notes }}</p>{% endif %}
-        {% if row.cover_letter %}
-          <pre class="letter">{{ row.cover_letter }}</pre>
-          <p><a href="{{ url_for('tracker_cover_letter', entry_id=row.id) }}">Download cover letter</a></p>
-        {% endif %}
-        <div class="row">
-          <form method="post" action="{{ url_for('tracker_status', entry_id=row.id) }}">
-            <select name="status" onchange="this.form.submit()">
-              {% for status in statuses %}
-              <option value="{{ status }}" {% if row.status == status %}selected{% endif %}>{{ status }}</option>
-              {% endfor %}
-            </select>
-          </form>
-          <form method="post" action="{{ url_for('tracker_apply', entry_id=row.id) }}">
-            <label class="meta"><input type="checkbox" name="send_now"> Send now</label>
-            <label class="meta"><input type="checkbox" name="mark_applied" checked> Mark applied</label>
-            <button type="submit">{% if row.cover_letter %}Submit over the internet{% else %}Write letter{% endif %}</button>
-          </form>
-          <form method="post" action="{{ url_for('tracker_remove', entry_id=row.id) }}">
-            <button type="submit">Remove</button>
-          </form>
-        </div>
-      </article>
-    {% endfor %}
-    {% if rows|length == 0 %}
-      <p class="lede">Nothing saved yet. Search for jobs and click Save to tracker.</p>
+      </div>
+      <span class="status status-{{ row.status }}">{{ row.status }}</span>
+    </div>
+    {% if row.url %}<p><a href="{{ row.url }}" target="_blank" rel="noopener">Open listing</a></p>{% endif %}
+    {% if row.apply_email %}<p class="meta">Hiring email: {{ row.apply_email }}</p>{% endif %}
+    {% if row.applied_via %}<p class="meta">Submitted via {{ row.applied_via }}{% if row.applied_at %} · {{ row.applied_at }}{% endif %}</p>{% endif %}
+    {% if row.notes %}<p>{{ row.notes }}</p>{% endif %}
+    {% if row.cover_letter %}
+      <pre class="letter">{{ row.cover_letter }}</pre>
+      <p><a href="{{ url_for('tracker_cover_letter', entry_id=row.id) }}">Download cover letter</a></p>
     {% endif %}
-  </main>
-</body>
-</html>
+    <div class="job-actions">
+      <form method="post" action="{{ url_for('tracker_status', entry_id=row.id) }}">
+        <label class="meta" for="status-{{ row.id }}">Status</label>
+        <select id="status-{{ row.id }}" name="status" onchange="this.form.submit()">
+          {% for status in statuses %}
+          <option value="{{ status }}" {% if row.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <form method="post" action="{{ url_for('tracker_apply', entry_id=row.id) }}">
+        <label class="check"><input type="checkbox" name="send_now"> Send now</label>
+        <label class="check"><input type="checkbox" name="mark_applied" checked> Mark applied</label>
+        <button class="primary" type="submit">{% if row.cover_letter %}Submit over the internet{% else %}Write letter{% endif %}</button>
+      </form>
+      <form method="post" action="{{ url_for('tracker_remove', entry_id=row.id) }}">
+        <button class="danger" type="submit">Remove</button>
+      </form>
+    </div>
+  </article>
+{% endfor %}
+{% if rows|length == 0 %}
+  <div class="empty">
+    <b>Nothing saved yet.</b>
+    Search for jobs and click Save to tracker.
+  </div>
+{% endif %}
+{% endblock %}
