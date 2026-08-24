@@ -14,7 +14,14 @@ from urllib.parse import urlencode
 
 import requests
 
-from jobfinder.config import GREENHOUSE_BOARDS, USER_AGENT
+from jobfinder.config import (
+    ASHBY_BOARDS,
+    GREENHOUSE_BOARDS,
+    LEVER_COMPANIES,
+    USAJOBS_AUTH_KEY,
+    USAJOBS_EMAIL,
+    USER_AGENT,
+)
 
 TIMEOUT = 20
 
@@ -283,6 +290,176 @@ def fetch_greenhouse(query: str, limit: int = 25) -> list[Job]:
     return jobs
 
 
+def fetch_ashby(query: str, limit: int = 25) -> list[Job]:
+    """Public Ashby job boards (no login)."""
+    jobs: list[Job] = []
+    for board in ASHBY_BOARDS:
+        if len(jobs) >= limit:
+            break
+        try:
+            response = _session().get(
+                f"https://api.ashbyhq.com/posting-api/job-board/{board}",
+                timeout=TIMEOUT,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except (requests.RequestException, ValueError):
+            continue
+        company = board.replace("-", " ").title()
+        postings = payload.get("jobs") or payload.get("jobPostings") or []
+        for item in postings:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title") or "Untitled"
+            description = _strip_html(
+                item.get("descriptionHtml") or item.get("description") or ""
+            )
+            location = (
+                item.get("location")
+                or item.get("locationName")
+                or ("Remote" if item.get("isRemote") else "")
+            )
+            url = item.get("jobUrl") or item.get("applyUrl") or ""
+            if not _matches_query(query, title, company, description):
+                continue
+            jobs.append(
+                Job(
+                    id=_job_id("ashby", board, str(item.get("id") or title)),
+                    title=title,
+                    company=company,
+                    location=str(location or "Unknown"),
+                    url=url,
+                    description=description,
+                    source="ashby",
+                    posted_at=str(item.get("publishedAt") or "") or None,
+                    apply_email=extract_apply_email(description, url),
+                )
+            )
+            if len(jobs) >= limit:
+                break
+    return jobs
+
+
+def fetch_lever(query: str, limit: int = 25) -> list[Job]:
+    """Public Lever postings (no login)."""
+    jobs: list[Job] = []
+    for company_slug in LEVER_COMPANIES:
+        if len(jobs) >= limit:
+            break
+        try:
+            response = _session().get(
+                f"https://api.lever.co/v0/postings/{company_slug}",
+                params={"mode": "json"},
+                timeout=TIMEOUT,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except (requests.RequestException, ValueError):
+            continue
+        company = company_slug.replace("-", " ").title()
+        if not isinstance(payload, list):
+            continue
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("text") or item.get("title") or "Untitled"
+            description = item.get("descriptionPlain") or _strip_html(
+                item.get("description") or ""
+            )
+            categories = item.get("categories") or {}
+            location = categories.get("location") or ""
+            url = item.get("hostedUrl") or item.get("applyUrl") or ""
+            if not _matches_query(query, title, company, description, [location]):
+                continue
+            jobs.append(
+                Job(
+                    id=_job_id("lever", company_slug, str(item.get("id") or title)),
+                    title=title,
+                    company=company,
+                    location=location or "Unknown",
+                    url=url,
+                    description=description,
+                    source="lever",
+                    posted_at=_epoch_to_iso(item.get("createdAt")),
+                    apply_email=extract_apply_email(description, url),
+                )
+            )
+            if len(jobs) >= limit:
+                break
+    return jobs
+
+
+def fetch_usajobs(query: str, limit: int = 25) -> list[Job]:
+    """USAJobs search. Needs the auth key from your developer.usajobs.gov login."""
+    if not (USAJOBS_EMAIL and USAJOBS_AUTH_KEY):
+        return []
+    response = _session().get(
+        "https://data.usajobs.gov/api/search",
+        params={"Keyword": query, "ResultsPerPage": min(limit, 50)},
+        headers={
+            "Host": "data.usajobs.gov",
+            "User-Agent": USAJOBS_EMAIL,
+            "Authorization-Key": USAJOBS_AUTH_KEY,
+        },
+        timeout=TIMEOUT,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    items = (
+        ((payload.get("SearchResult") or {}).get("SearchResultItems")) or []
+    )
+    jobs: list[Job] = []
+    for item in items:
+        descriptor = (item or {}).get("MatchedObjectDescriptor") or {}
+        title = descriptor.get("PositionTitle") or "Untitled"
+        company = descriptor.get("OrganizationName") or "USAJobs"
+        details = (descriptor.get("UserArea") or {}).get("Details") or {}
+        description = _strip_html(
+            details.get("JobSummary") or descriptor.get("QualificationSummary") or ""
+        )
+        url = descriptor.get("PositionURI") or descriptor.get("ApplyURI") or ""
+        if isinstance(url, list):
+            url = url[0] if url else ""
+        location = descriptor.get("PositionLocationDisplay") or ""
+        if not _matches_query(query, title, company, description):
+            continue
+        jobs.append(
+            Job(
+                id=_job_id("usajobs", str(item.get("MatchedObjectId") or title)),
+                title=title,
+                company=company,
+                location=location or "United States",
+                url=str(url),
+                description=description,
+                source="usajobs",
+                apply_email=extract_apply_email(description, str(url)),
+            )
+        )
+        if len(jobs) >= limit:
+            break
+    return jobs
+
+
+def fetch_listing(url: str) -> Job:
+    """Turn a pasted listing URL into a Job (public HTTP GET, no site login)."""
+    from jobfinder.submit import get_url
+
+    final_url, html = get_url(url)
+    title_match = re.search(r"<title[^>]*>(.*?)</title>", html or "", re.I | re.S)
+    title = _strip_html(title_match.group(1) if title_match else "") or "Pasted listing"
+    description = _strip_html(html or "")[:8000]
+    return Job(
+        id=_job_id("url", final_url or url),
+        title=title[:160],
+        company="",
+        location="",
+        url=final_url or url,
+        description=description,
+        source="url",
+        apply_email=extract_apply_email(html or "", final_url or url),
+    )
+
+
 def _remoteok_salary(item: dict[str, Any]) -> str | None:
     low, high = item.get("salary_min"), item.get("salary_max")
     if low and high:
@@ -309,6 +486,9 @@ SOURCES: dict[str, Callable[[str, int], list[Job]]] = {
     "arbeitnow": fetch_arbeitnow,
     "remoteok": fetch_remoteok,
     "greenhouse": fetch_greenhouse,
+    "ashby": fetch_ashby,
+    "lever": fetch_lever,
+    "usajobs": fetch_usajobs,
 }
 DEFAULT_SOURCES = ("remotive", "arbeitnow", "remoteok")
 

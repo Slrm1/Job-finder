@@ -26,6 +26,9 @@ def test_parser_dashboard_resume_pdf_and_mcp():
     assert pdf.template == "professional"
     assert parser.parse_args(["mcp"]).func.__name__ == "cmd_mcp"
     assert parser.parse_args(["keys", "--test", "--to", "ada@example.com"]).to == "ada@example.com"
+    assert parser.parse_args(["run", "python intern", "--apply", "3", "--yes"]).yes is True
+    assert parser.parse_args(["followup", "--days", "7"]).days == 7
+    assert parser.parse_args(["login", "--test"]).test is True
     download_args = parser.parse_args(["download", "--packages", "--skip-affine"])
     assert download_args.packages is True
     assert download_args.skip_affine is True
@@ -98,7 +101,8 @@ def test_keys_command(capsys):
     assert "RESEND_API_KEY" in out
     assert "SENDGRID_API_KEY" in out
     assert "APPLY_API_KEY" in out
-    assert "GREENHOUSE_JOB_BOARD_KEY" in out
+    assert "MAIL_USER" in out
+    assert "PAPERLESS_URL" in out
     assert "missing" in out or "set" in out
 
 
@@ -144,10 +148,10 @@ def test_search_command_uses_keyword_rank(monkeypatch, capsys):
         source="remotive",
         tags=["python"],
     )
-    monkeypatch.setattr("jobfinder.cli.search_jobs", lambda *a, **k: [job])
+    monkeypatch.setattr("jobfinder.agents.search_jobs", lambda *a, **k: [job])
     monkeypatch.setattr(
-        "jobfinder.cli._load_profile",
-        lambda path: __import__("jobfinder.match", fromlist=["Profile"]).Profile(
+        "jobfinder.agents.resolve_profile",
+        lambda **k: __import__("jobfinder.match", fromlist=["Profile"]).Profile(
             skills=["Python"], keywords=["intern"]
         ),
     )
@@ -238,7 +242,7 @@ def test_web_index_and_search(monkeypatch):
         source="remotive",
         tags=["python"],
     )
-    monkeypatch.setattr("jobfinder.web.search_jobs", lambda *a, **k: [job])
+    monkeypatch.setattr("jobfinder.agents.search_jobs", lambda *a, **k: [job])
     app = create_app()
     client = app.test_client()
     home = client.get("/")
@@ -252,14 +256,14 @@ def test_web_index_and_search(monkeypatch):
 
     ranked = RankedJob(job=job, score=90, summary="Good intern fit", method="keywords")
     monkeypatch.setattr(
-        "jobfinder.web.rank_jobs", lambda jobs, profile, query="": [ranked]
+        "jobfinder.agents.rank_jobs", lambda jobs, profile, query="": [ranked]
     )
     response = client.post("/search", data={"query": "python intern", "limit": "10"})
     assert response.status_code == 200
     assert b"Python Intern" in response.data
     assert b"Good intern fit" in response.data
     assert b"Save to tracker" in response.data
-    assert b"Submit resume over the internet" in response.data
+    assert b"Write letter / submit" in response.data
 
     sample = (
         b"Ada Lovelace\nPython intern\n\nSkills\nPython, Flask, SQL, Git\n\n"

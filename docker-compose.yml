@@ -1,0 +1,65 @@
+# Local stack: Job-finder UI + Paperless-ngx OCR.
+# Paperless source is not vendored; this pulls the official image.
+# https://github.com/paperless-ngx/paperless-ngx
+#
+#   docker compose up
+# Then set in .env:
+#   PAPERLESS_URL=http://localhost:8000
+#   PAPERLESS_USER=admin
+#   PAPERLESS_PASSWORD=changeme
+
+services:
+  redis:
+    image: docker.io/library/redis:7
+    restart: unless-stopped
+
+  db:
+    image: docker.io/library/postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: paperless
+    volumes:
+      - paperless_pg:/var/lib/postgresql/data
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - db
+    ports:
+      - "8000:8000"
+    environment:
+      PAPERLESS_REDIS: redis://redis:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_OCR_LANGUAGE: eng
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_PASSWORD:-changeme}
+      PAPERLESS_URL: http://localhost:8000
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_consume:/usr/src/paperless/consume
+
+  jobfinder:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      PAPERLESS_URL: http://paperless:8000
+      PAPERLESS_USER: ${PAPERLESS_USER:-admin}
+      PAPERLESS_PASSWORD: ${PAPERLESS_PASSWORD:-changeme}
+    volumes:
+      - .:/app
+    depends_on:
+      - paperless
+    command: python -m jobfinder serve --host 0.0.0.0 --port 5000
+
+volumes:
+  paperless_pg:
+  paperless_data:
+  paperless_media:
+  paperless_consume:

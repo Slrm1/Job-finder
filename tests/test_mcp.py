@@ -9,6 +9,8 @@ def test_initialize_and_tools_list():
     assert {"add_job", "list_jobs", "set_status", "pipeline_stats"} <= names
     assert "draft_cover_letter" in names
     assert "apply_job" in names
+    assert "run_pipeline" in names
+    assert "followups" in names
 
 
 def test_add_list_status_and_stats(tmp_path, monkeypatch):

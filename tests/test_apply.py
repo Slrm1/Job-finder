@@ -34,6 +34,25 @@ def _profile() -> Profile:
     )
 
 
+def test_daily_cap_blocks_send(tmp_path, monkeypatch):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    monkeypatch.setattr("jobfinder.config.APPLY_DAILY_CAP", 0)
+    sent = []
+    result = apply_to_job(
+        _job(),
+        _profile(),
+        send=True,
+        db_path=db,
+        apply_dir=tmp_path / "out",
+        smtp_send=sent.append,
+        humanize=False,
+    )
+    assert sent == []
+    assert result.submitted is False
+    assert "cap" in result.message.lower()
+
+
 def test_extract_apply_email_skips_placeholders():
     assert extract_apply_email("mailto:jobs@acme.test") == "jobs@acme.test"
     assert extract_apply_email("Contact noreply@github.com then jobs@labs.io") == "jobs@labs.io"

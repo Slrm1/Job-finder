@@ -155,17 +155,19 @@ def email_backend() -> str:
     if requested == "mailgun":
         return "mailgun" if (MAILGUN_API_KEY and MAILGUN_DOMAIN) else ""
     if requested == "smtp":
-        from jobfinder.config import APPLY_SMTP_HOST
+        from jobfinder.config import APPLY_SMTP_HOST, APPLY_SMTP_USER
 
         return "smtp" if APPLY_SMTP_HOST else ""
+    from jobfinder.config import APPLY_SMTP_HOST, APPLY_SMTP_USER
+
+    if APPLY_SMTP_HOST and APPLY_SMTP_USER:
+        return "smtp"
     if RESEND_API_KEY:
         return "resend"
     if SENDGRID_API_KEY:
         return "sendgrid"
     if MAILGUN_API_KEY and MAILGUN_DOMAIN:
         return "mailgun"
-    from jobfinder.config import APPLY_SMTP_HOST
-
     if APPLY_SMTP_HOST:
         return "smtp"
     return ""
@@ -181,11 +183,16 @@ def key_status() -> dict[str, str]:
         APPLY_API_KEY,
         APPLY_FROM,
         APPLY_SMTP_HOST,
+        APPLY_SMTP_USER,
         GREENHOUSE_JOB_BOARD_KEY,
         MAILGUN_API_KEY,
         MAILGUN_DOMAIN,
+        PAPERLESS_URL,
+        PAPERLESS_USER,
         RESEND_API_KEY,
         SENDGRID_API_KEY,
+        USAJOBS_AUTH_KEY,
+        USAJOBS_EMAIL,
     )
 
     def flag(ok: bool) -> str:
@@ -194,12 +201,17 @@ def key_status() -> dict[str, str]:
     return {
         "email_backend": email_backend() or "none",
         "APPLY_FROM": flag(bool(APPLY_FROM)),
+        "MAIL_USER": flag(bool(APPLY_SMTP_USER)),
+        "MAIL_HOST": flag(bool(APPLY_SMTP_HOST)),
+        "PAPERLESS_URL": flag(bool(PAPERLESS_URL)),
+        "PAPERLESS_USER": flag(bool(PAPERLESS_USER)),
+        "USAJOBS_EMAIL": flag(bool(USAJOBS_EMAIL)),
+        "USAJOBS_AUTH_KEY": flag(bool(USAJOBS_AUTH_KEY)),
         "APPLY_API_KEY": flag(bool(APPLY_API_KEY)),
         "RESEND_API_KEY": flag(bool(RESEND_API_KEY)),
         "SENDGRID_API_KEY": flag(bool(SENDGRID_API_KEY)),
         "MAILGUN_API_KEY": flag(bool(MAILGUN_API_KEY)),
         "MAILGUN_DOMAIN": flag(bool(MAILGUN_DOMAIN)),
-        "APPLY_SMTP_HOST": flag(bool(APPLY_SMTP_HOST)),
         "GREENHOUSE_JOB_BOARD_KEY": flag(bool(GREENHOUSE_JOB_BOARD_KEY)),
     }
 

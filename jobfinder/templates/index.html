@@ -117,8 +117,12 @@
       </div>
       <div>
         <label for="query">Role or keywords</label>
-        <input id="query" name="query" type="text" required
+        <input id="query" name="query" type="text"
                value="{{ query }}" placeholder="python backend intern">
+      </div>
+      <div>
+        <label for="url">Or paste a listing URL</label>
+        <input id="url" name="url" type="text" placeholder="https://...">
       </div>
       <div class="row">
         <div>
@@ -203,9 +207,9 @@
             <input type="hidden" name="source" value="{{ item.job.source }}">
             <input type="hidden" name="score" value="{{ item.score }}">
             <textarea name="description" hidden>{{ item.job.description[:2000] }}</textarea>
-            <label class="meta"><input type="checkbox" name="draft_only"> Draft only (do not send)</label>
+            label class="meta"><input type="checkbox" name="send_now"> Send now (mailbox login)</label>
             <label class="meta"><input type="checkbox" name="mark_applied"> Mark as applied</label>
-            <button type="submit">Submit resume over the internet</button>
+            <button type="submit">Write letter / submit</button>
           </form>
         </article>
       {% endfor %}

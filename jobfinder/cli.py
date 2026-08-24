@@ -74,46 +74,39 @@ def _add_candidate_flags(parser: argparse.ArgumentParser) -> None:
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    jobs = search_jobs(
+    from jobfinder.agents import Supervisor
+
+    result = Supervisor().run(
         args.query,
+        profile_path=getattr(args, "profile", None),
+        resume_path=getattr(args, "resume", None),
         sources=args.sources.split(",") if args.sources else None,
         limit=args.limit,
+        url=getattr(args, "url", "") or "",
+        affine=args.affine,
+        humanize=getattr(args, "humanize", False),
+        apply_count=getattr(args, "apply", None),
+        yes=bool(getattr(args, "yes", False)) and not getattr(args, "draft_only", False),
+        include_tracked=getattr(args, "include_tracked", False),
     )
-    profile = _load_profile(args)
+    profile = result.profile
+    ranked = result.ranked
     _describe_profile(profile)
-    if args.affine:
-        ranked = rank_jobs_with_affine(
-            jobs, profile, limit=min(args.limit, 8), query=args.query
-        )
-    else:
-        ranked = rank_jobs(jobs, profile, query=args.query)
-    if getattr(args, "humanize", False):
-        from jobfinder.humanizer import humanize_ranked
-
-        ranked = humanize_ranked(ranked)
+    for event in result.log:
+        console.print(f"[dim]{event.agent}[/dim] {event.message}")
     if getattr(args, "save", None):
         from jobfinder.tracker import save_ranked
 
         stored = save_ranked(ranked, limit=args.save)
         console.print(f"[green]Saved {len(stored)} jobs to the tracker.[/green]")
-    if getattr(args, "apply", None):
-        from jobfinder.apply import apply_ranked
-
-        applications = apply_ranked(
-            ranked,
-            profile,
-            limit=args.apply,
-            send=not getattr(args, "draft_only", False),
-            mark_applied=getattr(args, "mark_applied", False),
-            affine=args.affine,
-        )
-        sent = sum(1 for item in applications if item.submitted)
+    if result.applications:
+        sent = sum(1 for item in result.applications if item.submitted)
         console.print(
-            f"[green]Drafted {len(applications)} cover letters"
-            + (f", submitted {sent}." if sent else ".")
+            f"[green]Drafted {len(result.applications)} cover letters"
+            + (f", submitted {sent}." if sent else " (preview; pass --yes to send).")
             + "[/green]"
         )
-        for item in applications:
+        for item in result.applications:
             console.print(f"  #{item.tracked.id} {item.tracked.title} — {item.message}")
             console.print()
             console.print(item.cover_letter)
@@ -284,7 +277,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
             result = apply_to_tracked(
                 entry_id,
                 profile,
-                send=not args.draft_only,
+                send=bool(getattr(args, "yes", False)) and not args.draft_only,
                 mark_applied=args.mark_applied,
                 affine=args.affine,
             )
@@ -414,12 +407,59 @@ def cmd_download(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    from jobfinder.agents import Supervisor
+
+    result = Supervisor().run(
+        args.query,
+        profile_path=args.profile,
+        resume_path=args.resume,
+        sources=args.sources.split(",") if args.sources else None,
+        limit=args.limit,
+        url=args.url or "",
+        affine=args.affine,
+        humanize=not args.no_humanize,
+        apply_count=args.apply,
+        yes=args.yes,
+        include_tracked=args.include_tracked,
+    )
+    for event in result.log:
+        console.print(f"[bold]{event.agent}[/bold] {event.message}")
+    _describe_profile(result.profile)
+    _print_jobs(result.ranked, show_summary=True)
+    for item in result.applications:
+        console.print(f"\n#{item.tracked.id} {item.tracked.title} — {item.message}")
+        console.print(item.cover_letter)
+    if result.followups:
+        console.print("\n[bold]Follow-ups due[/bold]")
+        for note in result.followups:
+            console.print(f"#{note['id']} {note['title']} — {note['company']}")
+            console.print(note["letter"])
+    if args.apply and not args.yes:
+        console.print("[yellow]Preview only. Re-run with --yes to send through your mailbox login.[/yellow]")
+    return 0
+
+
+def cmd_followup(args: argparse.Namespace) -> int:
+    from jobfinder.followup import draft_followup, due_followups
+
+    profile = _load_profile(args)
+    rows = due_followups(days=args.days)
+    if not rows:
+        console.print("No applied jobs are waiting on a follow-up.")
+        return 0
+    for row in rows:
+        console.print(f"[bold]#{row.id} {row.title}[/bold] — {row.company}")
+        console.print(draft_followup(row, profile))
+    return 0
+
+
 def cmd_keys(args: argparse.Namespace) -> int:
     from jobfinder.config import APPLY_FROM
     from jobfinder.submit import SubmitError, email_backend, key_status, send_application_email
 
     status = key_status()
-    table = Table(title="Apply API keys")
+    table = Table(title="Login credits (.env)")
     table.add_column("Setting")
     table.add_column("Status")
     for name, value in status.items():
@@ -429,15 +469,16 @@ def cmd_keys(args: argparse.Namespace) -> int:
     if backend in {"resend", "sendgrid", "mailgun"}:
         console.print(f"[green]Ready to send applications via the {backend} API.[/green]")
     elif backend == "smtp":
-        console.print("[green]Ready to send applications via SMTP.[/green]")
+        console.print("[green]Ready to send applications via mailbox login (SMTP).[/green]")
     else:
         console.print(
-            "[yellow]No send key yet.[/yellow] Add one of these to .env, then rerun "
-            "[bold]jobfinder keys[/bold]:\n"
+            "[yellow]No mailbox login yet.[/yellow] Add these to .env, then rerun "
+            "[bold]jobfinder login[/bold]:\n"
             "  APPLY_FROM=you@example.com\n"
-            "  RESEND_API_KEY=re_xxxxxxxx\n"
-            "or SENDGRID_API_KEY=SG.xxxxxxxx\n"
-            "or APPLY_API_KEY=re_xxxxxxxx"
+            "  MAIL_HOST=smtp.example.com\n"
+            "  MAIL_USER=you@example.com\n"
+            "  MAIL_PASSWORD=your-mailbox-password\n"
+            "Paperless OCR: PAPERLESS_URL, PAPERLESS_USER, PAPERLESS_PASSWORD"
         )
     if not args.test:
         return 0
@@ -445,8 +486,27 @@ def cmd_keys(args: argparse.Namespace) -> int:
     if not dest:
         console.print("[red]Pass --to you@example.com or set APPLY_FROM for a test send.[/red]")
         return 1
+    if backend == "smtp":
+        from email.message import EmailMessage
+        from jobfinder.apply import _smtp_send
+
+        message = EmailMessage()
+        message["From"] = APPLY_FROM or dest
+        message["To"] = dest
+        message["Subject"] = "Job-finder mailbox login test"
+        message.set_content(
+            "This is a test from Job-finder. If you received it, your mailbox "
+            "login can submit applications on your behalf."
+        )
+        try:
+            _smtp_send(message)
+        except Exception as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 1
+        console.print(f"[green]Sent a test message to {dest} via SMTP.[/green]")
+        return 0
     if backend not in {"resend", "sendgrid", "mailgun"}:
-        console.print("[red]Test send needs RESEND_API_KEY, SENDGRID_API_KEY, or MAILGUN_API_KEY.[/red]")
+        console.print("[red]Test send needs MAIL_HOST+MAIL_USER or an email API key.[/red]")
         return 1
     try:
         result = send_application_email(
@@ -486,6 +546,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Re-rank the shortlist with Affine-S6 (needs local weights or HF_TOKEN)",
     )
     search.add_argument("--verbose", action="store_true")
+    search.add_argument("--url", help="Also rank a pasted listing URL")
+    search.add_argument(
+        "--include-tracked",
+        action="store_true",
+        help="Do not hide jobs already in the tracker",
+    )
     search.add_argument(
         "--humanize",
         action="store_true",
@@ -501,12 +567,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--apply",
         type=int,
         metavar="N",
-        help="Write cover letters and submit the top N matches over the internet",
+        help="Write cover letters for the top N matches (send only with --yes)",
+    )
+    search.add_argument(
+        "--yes",
+        action="store_true",
+        help="Actually send applications (mailbox login). Default is preview.",
     )
     search.add_argument(
         "--send",
         action="store_true",
-        help="(default with --apply) Submit over email or Greenhouse",
+        help="Deprecated alias for --yes",
     )
     search.add_argument(
         "--draft-only",
@@ -529,9 +600,12 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--humanize", action="store_true")
     rank.add_argument("--save", type=int, metavar="N")
     rank.add_argument("--apply", type=int, metavar="N")
+    rank.add_argument("--yes", action="store_true")
     rank.add_argument("--send", action="store_true")
     rank.add_argument("--draft-only", action="store_true")
     rank.add_argument("--mark-applied", action="store_true")
+    rank.add_argument("--url")
+    rank.add_argument("--include-tracked", action="store_true")
     rank.set_defaults(func=cmd_rank)
 
     preview = sub.add_parser("profile", help="Show the profile parsed from your resume")
@@ -576,9 +650,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply to every job still in saved status",
     )
     apply_cmd.add_argument(
+        "--yes",
+        action="store_true",
+        help="Send through your mailbox login. Default is preview/draft.",
+    )
+    apply_cmd.add_argument(
         "--send",
         action="store_true",
-        help="(default) Submit over the internet via email or Greenhouse",
+        help="Deprecated alias for --yes",
     )
     apply_cmd.add_argument(
         "--draft-only",
@@ -674,7 +753,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     download.set_defaults(func=cmd_download)
 
-    keys = sub.add_parser("keys", help="Show apply API key status (no secrets printed)")
+    run = sub.add_parser(
+        "run",
+        help="Supervisor pipeline: resume, search, rank, draft/apply, follow-up",
+    )
+    run.add_argument("query")
+    run.add_argument("--limit", type=int, default=20)
+    run.add_argument("--sources")
+    run.add_argument("--url", default="", help="Also ingest a pasted listing URL")
+    run.add_argument("--apply", type=int, metavar="N", help="Draft or send the top N")
+    run.add_argument("--yes", action="store_true", help="Send through mailbox login")
+    run.add_argument("--affine", action="store_true")
+    run.add_argument("--no-humanize", action="store_true")
+    run.add_argument("--include-tracked", action="store_true")
+    _add_candidate_flags(run)
+    run.set_defaults(func=cmd_run)
+
+    followup = sub.add_parser("followup", help="Draft follow-ups for stale applications")
+    followup.add_argument("--days", type=int, default=None, help="Days since applied")
+    _add_candidate_flags(followup)
+    followup.set_defaults(func=cmd_followup)
+
+    keys = sub.add_parser("keys", help="Show mailbox/Paperless login status (no secrets printed)")
     keys.add_argument(
         "--test",
         action="store_true",
@@ -682,12 +782,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     keys.add_argument("--to", help="Override the test recipient")
     keys.set_defaults(func=cmd_keys)
+
+    login = sub.add_parser("login", help="Same as jobfinder keys (mailbox/Paperless login)")
+    login.add_argument("--test", action="store_true")
+    login.add_argument("--to")
+    login.set_defaults(func=cmd_keys)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "send", False) and hasattr(args, "yes"):
+        args.yes = True
     try:
         return args.func(args)
     except KeyboardInterrupt:

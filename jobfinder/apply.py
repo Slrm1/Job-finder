@@ -103,7 +103,10 @@ def apply_to_job(
     smtp_send: SmtpSender | None = None,
     score: float | None = None,
 ) -> ApplyResult:
-    letter = generate_cover_letter(job, profile, humanize=humanize, affine=affine)
+    from jobfinder.tailor import tailor_profile
+
+    tailored = tailor_profile(job, profile)
+    letter = generate_cover_letter(job, tailored, humanize=humanize, affine=affine)
     email = job.apply_email or extract_apply_email(job.description, job.url)
     saved = save_job(
         job,
@@ -116,7 +119,7 @@ def apply_to_job(
     )
     return _finish(
         saved,
-        profile,
+        tailored,
         letter,
         send=send,
         mark_applied=mark_applied,
@@ -223,7 +226,8 @@ def write_package(
         "",
         "Company career-page forms that need extra questions or a captcha",
         "cannot be finished over HTTP. Greenhouse boards can be submitted when",
-        "GREENHOUSE_JOB_BOARD_KEY is set. Otherwise email the .eml file or paste",
+        "GREENHOUSE_JOB_BOARD_KEY is set. Otherwise email the .eml file using your "
+        "mailbox login (MAIL_HOST / MAIL_USER / MAIL_PASSWORD) or paste "
         "cover-letter.txt on the listing.",
     ]
     (dest / "HOW_TO_SUBMIT.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -262,6 +266,19 @@ def _finish(
     message = f"Wrote application package to {folder}"
     resume_pdf = folder / "resume.pdf"
 
+    if send:
+        from jobfinder.config import APPLY_DAILY_CAP
+        from jobfinder.tracker import applied_today_count
+
+        if applied_today_count(db_path) >= APPLY_DAILY_CAP:
+            send = False
+            cap_note = (
+                f" Daily send cap ({APPLY_DAILY_CAP}) reached; wrote a draft instead."
+            )
+        else:
+            cap_note = ""
+    else:
+        cap_note = ""
     if send:
         target = discover_apply_target(
             row.url,
@@ -367,6 +384,8 @@ def _finish(
 
     if row.status == "applied":
         submitted = True
+    if cap_note:
+        message += cap_note
     return ApplyResult(
         tracked=row,
         cover_letter=letter,

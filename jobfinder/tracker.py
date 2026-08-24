@@ -326,6 +326,20 @@ def remove_tracked(entry_id: int, db_path: Path | None = None) -> None:
             raise TrackerError(f"No saved job with id {entry_id}")
 
 
+def applied_today_count(db_path: Path | None = None, today: str | None = None) -> int:
+    day = today or datetime.now(timezone.utc).date().isoformat()
+    n = 0
+    for row in list_tracked(status="applied", db_path=db_path):
+        stamp = row.applied_at or ""
+        if stamp.startswith(day):
+            n += 1
+    return n
+
+
+def tracked_keys(db_path: Path | None = None) -> set[str]:
+    return {row.job_key for row in list_tracked(db_path=db_path)}
+
+
 def counts(db_path: Path | None = None) -> dict[str, int]:
     with _connect(db_path) as connection:
         rows = connection.execute(

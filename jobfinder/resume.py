@@ -140,6 +140,13 @@ def read_resume(path: str | Path) -> str:
         )
     if suffix == ".pdf":
         text = _read_pdf(file_path)
+        if len(_clean_text(text)) < 40:
+            from jobfinder.ocr import OCRError, ocr_resume
+
+            try:
+                text = ocr_resume(file_path)
+            except OCRError as exc:
+                raise ResumeError(str(exc)) from exc
     elif suffix == ".docx":
         text = _read_docx(file_path)
     else:

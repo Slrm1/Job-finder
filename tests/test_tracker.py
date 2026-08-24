@@ -74,3 +74,12 @@ def test_dashboard_stats(tmp_path):
     assert stats["counts"]["saved"] == 1
     assert stats["apply_rate"] == 50.0
     assert len(stats["recent"]) == 2
+
+
+def test_applied_today_count(tmp_path):
+    from jobfinder.tracker import applied_today_count, record_application
+
+    db = tmp_path / "apps.db"
+    first = save_job(_job(), db_path=db)
+    record_application(first.id, via="smtp", db_path=db)
+    assert applied_today_count(db_path=db) == 1

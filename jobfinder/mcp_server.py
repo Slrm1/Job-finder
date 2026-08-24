@@ -86,6 +86,30 @@ TOOLS = [
             "required": ["id"],
         },
     },
+    {
+        "name": "run_pipeline",
+        "description": (
+            "Run the supervisor agents: resume, search, rank, optional draft/apply. "
+            "send/yes defaults to false (preview only)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "url": {"type": "string"},
+                "limit": {"type": "integer"},
+                "apply": {"type": "integer"},
+                "yes": {"type": "boolean"},
+                "affine": {"type": "boolean"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "followups",
+        "description": "Draft follow-up notes for applications with no reply.",
+        "inputSchema": {"type": "object", "properties": {"days": {"type": "integer"}}},
+    },
 ]
 
 
@@ -178,10 +202,38 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> str:
         result = apply_to_tracked(
             int(arguments["id"]),
             resolve_profile(),
-            send=bool(arguments.get("send", True)),
+            send=bool(arguments.get("send") or arguments.get("yes")),
             mark_applied=bool(arguments.get("mark_applied", True)),
         )
         return json.dumps(result.to_dict(), indent=2)
+    if name == "run_pipeline":
+        from jobfinder.agents import Supervisor
+
+        pipeline = Supervisor().run(
+            str(arguments.get("query") or ""),
+            url=str(arguments.get("url") or ""),
+            limit=int(arguments.get("limit") or 20),
+            apply_count=int(arguments["apply"]) if arguments.get("apply") else None,
+            yes=bool(arguments.get("yes") or arguments.get("send")),
+            affine=bool(arguments.get("affine")),
+        )
+        return json.dumps(pipeline.to_dict(), indent=2)
+    if name == "followups":
+        from jobfinder.followup import draft_followup, due_followups
+        from jobfinder.resume import resolve_profile
+
+        profile = resolve_profile()
+        notes = []
+        for row in due_followups(days=arguments.get("days")):
+            notes.append(
+                {
+                    "id": row.id,
+                    "title": row.title,
+                    "company": row.company,
+                    "letter": draft_followup(row, profile),
+                }
+            )
+        return json.dumps(notes, indent=2)
     raise ValueError(f"Unknown tool {name}")
 
 

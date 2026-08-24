@@ -214,3 +214,60 @@ def test_fetch_greenhouse_filters_title(monkeypatch):
     assert [job.title for job in jobs] == ["Python Intern"]
     assert jobs[0].source == "greenhouse"
     assert jobs[0].company == "Stripe"
+
+
+def test_fetch_ashby_and_lever(monkeypatch):
+    ashby = {
+        "jobs": [
+            {
+                "id": "a1",
+                "title": "Python Intern",
+                "jobUrl": "https://jobs.ashbyhq.com/acme/a1",
+                "descriptionHtml": "<p>Flask internship</p>",
+                "isRemote": True,
+            }
+        ]
+    }
+    lever = [
+        {
+            "id": "l1",
+            "text": "Python Intern",
+            "hostedUrl": "https://jobs.lever.co/acme/l1",
+            "descriptionPlain": "Flask internship",
+            "categories": {"location": "Remote"},
+        }
+    ]
+
+    def fake_get(self, url, params=None, timeout=None):
+        if "ashbyhq.com" in url:
+            return FakeResponse(ashby)
+        return FakeResponse(lever)
+
+    monkeypatch.setattr("jobfinder.jobs.ASHBY_BOARDS", ["acme"])
+    monkeypatch.setattr("jobfinder.jobs.LEVER_COMPANIES", ["acme"])
+    monkeypatch.setattr("jobfinder.jobs.requests.Session.get", fake_get)
+    from jobfinder.jobs import fetch_ashby, fetch_lever
+
+    assert fetch_ashby("python intern")[0].source == "ashby"
+    assert fetch_lever("python intern")[0].source == "lever"
+
+
+def test_usajobs_skips_without_login(monkeypatch):
+    from jobfinder.jobs import fetch_usajobs
+
+    monkeypatch.setattr("jobfinder.jobs.USAJOBS_EMAIL", "")
+    monkeypatch.setattr("jobfinder.jobs.USAJOBS_AUTH_KEY", "")
+    assert fetch_usajobs("python intern") == []
+
+
+def test_fetch_listing_from_html(monkeypatch):
+    from jobfinder.jobs import fetch_listing
+
+    monkeypatch.setattr(
+        "jobfinder.submit.get_url",
+        lambda url: (url, "<title>Python Intern — Acme</title> mailto:jobs@acme.test"),
+    )
+    job = fetch_listing("https://jobs.acme.test/role")
+    assert job.source == "url"
+    assert "Python Intern" in job.title
+    assert job.apply_email == "jobs@acme.test"

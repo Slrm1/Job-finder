@@ -180,6 +180,12 @@ def keyword_score(job: Job, profile: Profile, query: str = "") -> RankedJob:
     if avoid_hits:
         score = max(0.0, score - 25 * len(avoid_hits))
         reasons.append("Contains avoided terms: " + ", ".join(avoid_hits))
+    if _early_career(profile) and _senior_title(job.title):
+        score = max(0.0, score - 40)
+        reasons.append("Senior-level title vs early-career profile")
+    elif _early_career(profile) and re.search(r"\b(intern|internship|new[- ]?grad)\b", job.title.lower()):
+        score = min(100.0, score + 12)
+        reasons.append("Early-career title matches profile")
 
     missing = [
         skill
@@ -205,6 +211,35 @@ def rank_jobs(jobs: list[Job], profile: Profile, query: str = "") -> list[Ranked
     ranked = [keyword_score(job, profile, query=query) for job in jobs]
     ranked.sort(key=lambda item: item.score, reverse=True)
     return ranked
+
+
+def _early_career(profile: Profile) -> bool:
+    blob = f"{profile.experience_level} {' '.join(profile.keywords)} {profile.headline}".lower()
+    return any(token in blob for token in ("intern", "internship", "new grad", "new-grad", "entry", "student"))
+
+
+def _senior_title(title: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(senior|staff|principal|director|manager|lead|head of|vp|vice president)\b",
+            title.lower(),
+        )
+    )
+
+
+def drop_mismatched_seniority(jobs: list[Job], profile: Profile) -> list[Job]:
+    """Hide obviously senior listings when the resume is intern/new-grad."""
+    if not _early_career(profile):
+        return jobs
+    return [job for job in jobs if not _senior_title(job.title)]
+
+
+def hide_tracked(jobs: list[Job], keys: set[str]) -> list[Job]:
+    if not keys:
+        return jobs
+    from jobfinder.tracker import job_key
+
+    return [job for job in jobs if job_key(job) not in keys]
 
 
 def affine_rank_prompt(job: Job, profile: Profile) -> str:

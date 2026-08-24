@@ -44,10 +44,19 @@ USER_AGENT = "Job-finder/0.1 (+https://github.com/Slrm1/Job-finder)"
 JOBFINDER_DB = Path(os.getenv("JOBFINDER_DB", str(ROOT_DIR / "jobs.db")))
 APPLY_DIR = Path(os.getenv("APPLY_DIR", str(ROOT_DIR / ".applications")))
 APPLY_FROM = os.getenv("APPLY_FROM", "").strip()
-APPLY_SMTP_HOST = os.getenv("APPLY_SMTP_HOST", "").strip()
-APPLY_SMTP_PORT = int(os.getenv("APPLY_SMTP_PORT", "587"))
-APPLY_SMTP_USER = os.getenv("APPLY_SMTP_USER", "").strip()
-APPLY_SMTP_PASSWORD = os.getenv("APPLY_SMTP_PASSWORD", "")
+APPLY_SMTP_HOST = (
+    os.getenv("APPLY_SMTP_HOST") or os.getenv("MAIL_HOST") or os.getenv("SMTP_HOST") or ""
+).strip()
+APPLY_SMTP_PORT = int(os.getenv("APPLY_SMTP_PORT") or os.getenv("MAIL_PORT") or "587")
+APPLY_SMTP_USER = (
+    os.getenv("APPLY_SMTP_USER") or os.getenv("MAIL_USER") or os.getenv("SMTP_USER") or ""
+).strip()
+APPLY_SMTP_PASSWORD = (
+    os.getenv("APPLY_SMTP_PASSWORD")
+    or os.getenv("MAIL_PASSWORD")
+    or os.getenv("SMTP_PASSWORD")
+    or ""
+)
 APPLY_SMTP_TLS = os.getenv("APPLY_SMTP_TLS", "1").strip().lower() not in {
     "0",
     "false",
@@ -56,6 +65,8 @@ APPLY_SMTP_TLS = os.getenv("APPLY_SMTP_TLS", "1").strip().lower() not in {
 }
 APPLY_PHONE = os.getenv("APPLY_PHONE", "").strip()
 APPLY_EMAIL_BACKEND = os.getenv("APPLY_EMAIL_BACKEND", "auto").strip().lower()
+APPLY_DAILY_CAP = int(os.getenv("APPLY_DAILY_CAP", "5"))
+FOLLOWUP_DAYS = int(os.getenv("FOLLOWUP_DAYS", "10"))
 APPLY_API_KEY = os.getenv("APPLY_API_KEY", "").strip()
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip() or (
     APPLY_API_KEY if APPLY_API_KEY.startswith("re_") else ""
@@ -66,15 +77,33 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "").strip() or (
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY", "").strip()
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN", "").strip()
 MAILGUN_API_BASE = os.getenv("MAILGUN_API_BASE", "https://api.mailgun.net").rstrip("/")
+
+# Paperless-ngx login (OCR). Token is optional; username/password hits /api/token/.
+PAPERLESS_URL = os.getenv("PAPERLESS_URL", "").strip().rstrip("/")
+PAPERLESS_USER = os.getenv("PAPERLESS_USER", "").strip()
+PAPERLESS_PASSWORD = os.getenv("PAPERLESS_PASSWORD", "")
+PAPERLESS_TOKEN = os.getenv("PAPERLESS_TOKEN", "").strip()
+
+
+def _csv(name: str, default: str) -> list[str]:
+    return [
+        token.strip()
+        for token in os.getenv(name, default).split(",")
+        if token.strip()
+    ]
+
+
 GREENHOUSE_JOB_BOARD_KEY = os.getenv("GREENHOUSE_JOB_BOARD_KEY", "").strip()
-GREENHOUSE_BOARDS = [
-    token.strip()
-    for token in os.getenv(
-        "GREENHOUSE_BOARDS",
-        "stripe,airbnb,discord,figma,notion,cloudflare,databricks",
-    ).split(",")
-    if token.strip()
-]
+GREENHOUSE_BOARDS = _csv(
+    "GREENHOUSE_BOARDS",
+    "stripe,airbnb,discord,figma,notion,cloudflare,databricks",
+)
+ASHBY_BOARDS = _csv("ASHBY_BOARDS", "openai,anthropic,notion,linear")
+LEVER_COMPANIES = _csv("LEVER_COMPANIES", "netflix,spotify,duolingo")
+USAJOBS_EMAIL = os.getenv("USAJOBS_EMAIL", "").strip() or APPLY_FROM
+USAJOBS_AUTH_KEY = (
+    os.getenv("USAJOBS_AUTH_KEY") or os.getenv("USAJOBS_API_KEY") or ""
+).strip()
 
 THINK_END_TOKEN = "</think>"
 # Qwen3 tokenizer id for </think>

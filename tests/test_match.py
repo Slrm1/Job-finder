@@ -49,6 +49,12 @@ def test_rank_jobs_orders_by_score():
     assert ranked[0].job.title == "Python Intern"
 
 
+def test_senior_title_penalized_for_intern_profile():
+    intern = Profile(skills=["Python"], keywords=["intern"], experience_level="intern")
+    ranked = keyword_score(_job(title="Senior Staff Engineer"), intern)
+    assert any("Senior-level" in reason for reason in ranked.reasons)
+
+
 def test_profile_from_mapping_and_prompt():
     profile = Profile.from_mapping(
         {

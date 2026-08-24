@@ -113,19 +113,24 @@ def create_app(
                 selected_sources=selected,
                 results=[],
             )
-        if query:
+        listing_url = (request.form.get("url") or "").strip()
+        if query or listing_url:
             try:
-                jobs = search_jobs(query, sources=selected, limit=limit)
-                if use_affine:
-                    ranked = rank_jobs_with_affine(
-                        jobs, profile, limit=min(limit, 8), query=query
-                    )
-                else:
-                    ranked = rank_jobs(jobs, profile, query=query)
-                if use_humanize:
-                    from jobfinder.humanizer import humanize_ranked
+                from jobfinder.agents import Supervisor
 
-                    ranked = humanize_ranked(ranked)
+                pipeline = Supervisor().run(
+                    query or listing_url,
+                    resume_text=profile.resume_text if request.files.get("resume") else None,
+                    resume_path=None if request.files.get("resume") else resume_path,
+                    profile_path=profile_path,
+                    sources=selected,
+                    limit=limit,
+                    url=listing_url,
+                    affine=use_affine,
+                    humanize=use_humanize,
+                )
+                ranked = pipeline.ranked
+                profile = pipeline.profile
             except Exception as exc:
                 error = str(exc)
         return _template(
@@ -172,7 +177,7 @@ def create_app(
             apply_to_job(
                 job,
                 profile,
-                send=request.form.get("draft_only") != "on",
+                send=request.form.get("send_now") == "on",
                 mark_applied=request.form.get("mark_applied") == "on",
                 score=score,
             )
@@ -260,7 +265,7 @@ def create_app(
             apply_to_tracked(
                 entry_id,
                 profile,
-                send=request.form.get("draft_only") != "on",
+                send=request.form.get("send_now") == "on",
                 mark_applied=request.form.get("mark_applied") == "on",
             )
         except Exception as exc:

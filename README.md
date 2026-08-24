@@ -47,6 +47,28 @@ jobfinder download --status
 
 Weights land in `.cache/` (gitignored). Keyword ranking still works without them.
 
+Mailbox login and Paperless OCR (no vendor API keys required):
+
+```
+APPLY_FROM=you@example.com
+MAIL_HOST=smtp.example.com
+MAIL_USER=you@example.com
+MAIL_PASSWORD=...
+PAPERLESS_URL=http://localhost:8000
+PAPERLESS_USER=admin
+PAPERLESS_PASSWORD=changeme
+```
+
+```bash
+cp .env.example .env
+docker compose up
+jobfinder login
+jobfinder run "python intern" --resume resume.example.txt --apply 3
+jobfinder run "python intern" --apply 3 --yes
+```
+
+`--yes` is required to send. Default is preview. Daily cap is `APPLY_DAILY_CAP` (5).
+
 Re-rank the shortlist with Affine-S6 (needs one of the backends below):
 
 ```bash
@@ -113,15 +135,53 @@ Listings come from public JSON APIs (no account required):
 - [Arbeitnow](https://www.arbeitnow.com/)
 - [Remote OK](https://remoteok.com/)
 - [Greenhouse](https://boards-api.greenhouse.io/) company boards (opt-in)
+- [Ashby](https://www.ashbyhq.com/) public boards (opt-in, `ASHBY_BOARDS`)
+- [Lever](https://github.com/lever/postings-api) public postings (opt-in, `LEVER_COMPANIES`)
+- [USAJobs](https://developer.usajobs.gov/) when `USAJOBS_EMAIL` and `USAJOBS_AUTH_KEY` are set from your developer login
+- A pasted listing URL (`--url` or `jobfinder run … --url`)
 
 You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords or things to avoid. If both a resume and a YAML profile exist, they are merged.
+
+## Login credits instead of API keys
+
+Put **your** mailbox and Paperless logins in `.env`. Job-finder will not store LinkedIn, Indeed, or Greenhouse *candidate* passwords, and it will not browser-login to those sites.
+
+| `.env` | What it is |
+| --- | --- |
+| `MAIL_HOST` / `MAIL_USER` / `MAIL_PASSWORD` | Your email mailbox (SMTP login) |
+| `PAPERLESS_URL` / `PAPERLESS_USER` / `PAPERLESS_PASSWORD` | Your Paperless-ngx admin login for OCR |
+| `USAJOBS_EMAIL` / `USAJOBS_AUTH_KEY` | Identity + key issued after you log into developer.usajobs.gov |
+
+`jobfinder login` (alias: `jobfinder keys`) prints set/missing only. `--test` sends a mail through SMTP or an optional vendor API.
+
+Resend/SendGrid/Mailgun keys still work if you prefer them. Mailbox login is used first when `MAIL_HOST` and `MAIL_USER` are set.
+
+## OCR with Paperless-ngx
+
+Scanned resume PDFs are sent to [Paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) over its REST API (`POST /api/token/` with your username and password, then `post_document/`). The Paperless source code is **not** copied into this repo.
+
+```bash
+docker compose up
+```
+
+That starts Paperless on port 8000 and Job-finder on port 5000. If Paperless is down, Job-finder tries `ocrmypdf` on PATH (same Tesseract stack Paperless uses).
+
+## Supervisor and subagents
+
+`jobfinder run` is a local supervisor that calls in-process workers: **resume** (parse + OCR) → **search** (boards, URL, hide already-tracked, drop senior titles for intern/new-grad profiles) → **rank** → **writer** (tailored resume + cover letter) → **apply** (only with `--yes`, daily cap) → **followup**.
+
+This is not a hosted multi-agent SaaS. It is the same pipeline the CLI, web UI, and MCP (`run_pipeline`) share.
+
+```bash
+jobfinder followup
+```
 
 ## Apply with a cover letter
 
 Job-finder submits **your** resume over the internet on your behalf when it can:
 
-1. **Email API key** — Resend, SendGrid, or Mailgun. Set `RESEND_API_KEY` / `SENDGRID_API_KEY` / `MAILGUN_API_KEY`+`MAILGUN_DOMAIN`, or a generic `APPLY_API_KEY` (`re_...` or `SG....`). This is the job-seeker path: a key you can create yourself.
-2. **SMTP** — same send, using `APPLY_SMTP_HOST` if you prefer a mailbox login over an API key.
+1. **Mailbox login** — `MAIL_HOST` / `MAIL_USER` / `MAIL_PASSWORD` (or `APPLY_SMTP_*`). This is the default send path.
+2. **Optional email APIs** — Resend, SendGrid, or Mailgun if you would rather use a vendor key.
 3. **Greenhouse HTTP** — `POST` to the official Job Board applications API when `GREENHOUSE_JOB_BOARD_KEY` is set. That key belongs to the **company’s board**, so it only works for boards you control.
 4. **Package** — `.applications/` with `cover-letter.txt`, `resume.pdf`, `application.eml` when nothing can be posted.
 
@@ -131,7 +191,7 @@ jobfinder apply 1
 jobfinder apply --saved --draft-only
 ```
 
-`--apply` and `jobfinder apply` send over the internet by default. `--draft-only` only writes the letter.
+`--apply` drafts letters. `--yes` (or `--send`) actually submits. `--draft-only` only writes the package. Daily cap: `APPLY_DAILY_CAP`.
 
 Email API key (recommended):
 
