@@ -10,7 +10,17 @@ from typing import Any, Callable
 
 import requests
 
-from jobfinder.config import APPLY_PHONE, GREENHOUSE_JOB_BOARD_KEY, USER_AGENT
+from jobfinder.config import (
+    APPLY_PHONE,
+    GREENHOUSE_JOB_BOARD_KEY,
+    MAILGUN_API_BASE,
+    MAILGUN_API_KEY,
+    MAILGUN_DOMAIN,
+    APPLY_EMAIL_BACKEND,
+    RESEND_API_KEY,
+    SENDGRID_API_KEY,
+    USER_AGENT,
+)
 from jobfinder.jobs import extract_apply_email
 from jobfinder.match import Profile
 
@@ -133,6 +143,161 @@ def discover_apply_target(
 
 def greenhouse_ready() -> bool:
     return bool(GREENHOUSE_JOB_BOARD_KEY)
+
+
+def email_backend() -> str:
+    """Pick resend, sendgrid, mailgun, or smtp from API keys / env."""
+    requested = APPLY_EMAIL_BACKEND
+    if requested == "resend":
+        return "resend" if RESEND_API_KEY else ""
+    if requested == "sendgrid":
+        return "sendgrid" if SENDGRID_API_KEY else ""
+    if requested == "mailgun":
+        return "mailgun" if (MAILGUN_API_KEY and MAILGUN_DOMAIN) else ""
+    if requested == "smtp":
+        from jobfinder.config import APPLY_SMTP_HOST
+
+        return "smtp" if APPLY_SMTP_HOST else ""
+    if RESEND_API_KEY:
+        return "resend"
+    if SENDGRID_API_KEY:
+        return "sendgrid"
+    if MAILGUN_API_KEY and MAILGUN_DOMAIN:
+        return "mailgun"
+    from jobfinder.config import APPLY_SMTP_HOST
+
+    if APPLY_SMTP_HOST:
+        return "smtp"
+    return ""
+
+
+def email_api_ready() -> bool:
+    return email_backend() in {"resend", "sendgrid", "mailgun"}
+
+
+def send_application_email(
+    *,
+    to: str,
+    from_addr: str,
+    subject: str,
+    body: str,
+    resume_pdf: Path | None = None,
+    poster: PostJson | None = None,
+) -> SubmitResult:
+    if not from_addr:
+        raise SubmitError("Set APPLY_FROM or put an email on your resume.")
+    backend = email_backend()
+    if backend == "resend":
+        _send_resend(to, from_addr, subject, body, resume_pdf, poster)
+    elif backend == "sendgrid":
+        _send_sendgrid(to, from_addr, subject, body, resume_pdf, poster)
+    elif backend == "mailgun":
+        _send_mailgun(to, from_addr, subject, body, resume_pdf, poster)
+    else:
+        raise SubmitError(
+            "No email API key found. Set RESEND_API_KEY, SENDGRID_API_KEY, "
+            "MAILGUN_API_KEY+MAILGUN_DOMAIN, or APPLY_API_KEY (re_... / SG....)."
+        )
+    return SubmitResult(
+        submitted=True,
+        method=backend,
+        message=f"Sent cover letter and resume to {to} via {backend} API.",
+        email=to,
+    )
+
+
+def _resume_b64(resume_pdf: Path | None) -> tuple[str, str]:
+    if not resume_pdf or not resume_pdf.is_file():
+        return "", ""
+    return base64.b64encode(resume_pdf.read_bytes()).decode("ascii"), "resume.pdf"
+
+
+def _send_resend(to, from_addr, subject, body, resume_pdf, poster) -> None:
+    if not RESEND_API_KEY:
+        raise SubmitError("RESEND_API_KEY is not set.")
+    payload: dict[str, Any] = {
+        "from": from_addr,
+        "to": [to],
+        "subject": subject,
+        "text": body,
+    }
+    encoded, filename = _resume_b64(resume_pdf)
+    if encoded:
+        payload["attachments"] = [{"filename": filename, "content": encoded}]
+    send = poster or requests.post
+    response = send(
+        "https://api.resend.com/emails",
+        json=payload,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+        },
+        timeout=TIMEOUT,
+    )
+    if getattr(response, "status_code", 0) >= 400:
+        raise SubmitError(f"Resend returned HTTP {response.status_code}: {response.text[:300]}")
+
+
+def _send_sendgrid(to, from_addr, subject, body, resume_pdf, poster) -> None:
+    if not SENDGRID_API_KEY:
+        raise SubmitError("SENDGRID_API_KEY is not set.")
+    payload: dict[str, Any] = {
+        "personalizations": [{"to": [{"email": to}]}],
+        "from": {"email": from_addr},
+        "subject": subject,
+        "content": [{"type": "text/plain", "value": body}],
+    }
+    encoded, filename = _resume_b64(resume_pdf)
+    if encoded:
+        payload["attachments"] = [
+            {
+                "content": encoded,
+                "filename": filename,
+                "type": "application/pdf",
+                "disposition": "attachment",
+            }
+        ]
+    send = poster or requests.post
+    response = send(
+        "https://api.sendgrid.com/v3/mail/send",
+        json=payload,
+        headers={
+            "Authorization": f"Bearer {SENDGRID_API_KEY}",
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+        },
+        timeout=TIMEOUT,
+    )
+    if getattr(response, "status_code", 0) >= 400:
+        raise SubmitError(
+            f"SendGrid returned HTTP {response.status_code}: {getattr(response, 'text', '')[:300]}"
+        )
+
+
+def _send_mailgun(to, from_addr, subject, body, resume_pdf, poster) -> None:
+    if not (MAILGUN_API_KEY and MAILGUN_DOMAIN):
+        raise SubmitError("MAILGUN_API_KEY and MAILGUN_DOMAIN are required.")
+    url = f"{MAILGUN_API_BASE}/v3/{MAILGUN_DOMAIN}/messages"
+    data = {"from": from_addr, "to": to, "subject": subject, "text": body}
+    files = None
+    if resume_pdf and resume_pdf.is_file():
+        files = {"attachment": ("resume.pdf", resume_pdf.read_bytes(), "application/pdf")}
+    send = poster or requests.post
+    try:
+        response = send(
+            url,
+            data=data,
+            files=files,
+            auth=("api", MAILGUN_API_KEY),
+            timeout=TIMEOUT,
+        )
+    except TypeError:
+        response = send(url, json={"data": data}, headers={"User-Agent": USER_AGENT}, timeout=TIMEOUT)
+    if getattr(response, "status_code", 0) >= 400:
+        raise SubmitError(
+            f"Mailgun returned HTTP {response.status_code}: {getattr(response, 'text', '')[:300]}"
+        )
 
 
 def greenhouse_payload(profile: Profile, letter: str) -> dict[str, Any]:

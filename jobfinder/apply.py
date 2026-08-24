@@ -21,7 +21,14 @@ from jobfinder.config import (
 from jobfinder.coverletter import generate_cover_letter
 from jobfinder.jobs import Job, extract_apply_email
 from jobfinder.match import Profile
-from jobfinder.submit import discover_apply_target, greenhouse_ready, submit_greenhouse
+from jobfinder.submit import (
+    discover_apply_target,
+    email_api_ready,
+    email_backend,
+    greenhouse_ready,
+    send_application_email,
+    submit_greenhouse,
+)
 from jobfinder.tracker import TrackedJob, get_tracked, record_application, save_job, set_cover_letter
 
 SmtpSender = Callable[[EmailMessage], None]
@@ -56,8 +63,14 @@ class ApplyResult:
         }
 
 
-def smtp_ready() -> bool:
-    return bool(APPLY_SMTP_HOST and _from_address())
+def smtp_ready(profile: Profile | None = None) -> bool:
+    """True if an email API key or SMTP can send applications."""
+    backend = email_backend()
+    if not backend:
+        return False
+    if backend in {"resend", "sendgrid", "mailgun"}:
+        return True
+    return bool(APPLY_SMTP_HOST and _from_address(profile))
 
 
 def _from_address(profile: Profile | None = None) -> str:
@@ -263,13 +276,41 @@ def _finish(
                 cover_letter=letter,
                 db_path=db_path,
             )
-        if row.apply_email and (smtp_send or smtp_ready()):
-            sender = smtp_send or _smtp_send
-            sender(_build_message(row, profile, letter, resume_pdf))
-            row = record_application(row.id, via="email", db_path=db_path)
-            submitted = True
-            method = "email"
-            message = f"Sent cover letter and resume to {row.apply_email} over the internet."
+        if row.apply_email and (smtp_send or smtp_ready(profile)):
+            if smtp_send:
+                smtp_send(_build_message(row, profile, letter, resume_pdf))
+                via = "email"
+                sent_how = f"Sent cover letter and resume to {row.apply_email} over the internet."
+            elif email_api_ready():
+                from jobfinder.submit import SubmitError
+
+                try:
+                    delivered = send_application_email(
+                        to=row.apply_email,
+                        from_addr=_from_address(profile) or row.apply_email,
+                        subject=f"Application: {row.title} — {profile.name or 'candidate'}",
+                        body=letter,
+                        resume_pdf=resume_pdf if resume_pdf.is_file() else None,
+                    )
+                except SubmitError as exc:
+                    method = email_backend() or "email"
+                    message = str(exc)
+                    if mark_applied:
+                        row = record_application(row.id, via=method, db_path=db_path)
+                    via = ""
+                    sent_how = ""
+                else:
+                    via = delivered.method
+                    sent_how = delivered.message
+            else:
+                _smtp_send(_build_message(row, profile, letter, resume_pdf))
+                via = "smtp"
+                sent_how = f"Sent cover letter and resume to {row.apply_email} over SMTP."
+            if via:
+                row = record_application(row.id, via=via, db_path=db_path)
+                submitted = True
+                method = via
+                message = sent_how
         elif target.greenhouse and greenhouse_ready():
             from jobfinder.submit import SubmitError
 
@@ -296,7 +337,8 @@ def _finish(
             method = "eml"
             message = (
                 f"Saved {folder / 'application.eml'} for {row.apply_email}. "
-                "Set APPLY_SMTP_HOST and APPLY_FROM in .env to send it over the internet."
+                "Set RESEND_API_KEY, SENDGRID_API_KEY, MAILGUN_API_KEY, "
+                "or APPLY_SMTP_HOST in .env to send it over the internet."
             )
             if mark_applied:
                 row = record_application(row.id, via="eml", db_path=db_path)

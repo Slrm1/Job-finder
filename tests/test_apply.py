@@ -141,3 +141,30 @@ def test_apply_posts_greenhouse_when_key_ready(tmp_path, monkeypatch):
     assert result.submitted is True
     assert result.method == "greenhouse"
     assert result.tracked.status == "applied"
+
+
+def test_apply_sends_via_resend_api(tmp_path, monkeypatch):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    monkeypatch.setattr("jobfinder.apply.email_api_ready", lambda: True)
+    monkeypatch.setattr("jobfinder.apply.smtp_ready", lambda profile=None: True)
+    monkeypatch.setattr(
+        "jobfinder.apply.send_application_email",
+        lambda **kwargs: SubmitResult(
+            submitted=True,
+            method="resend",
+            message=f"Sent via resend to {kwargs['to']}",
+            email=kwargs["to"],
+        ),
+    )
+    result = apply_to_job(
+        _job(),
+        _profile(),
+        send=True,
+        db_path=db,
+        apply_dir=tmp_path / "out",
+        humanize=False,
+    )
+    assert result.submitted is True
+    assert result.method == "resend"
+    assert "jobs@acme.test" in result.message

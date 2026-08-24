@@ -61,6 +61,7 @@ def test_model_command(capsys):
     assert "WebScraper991923/Affine-S6" in out
     assert "huggingface.co/WebScraper991923/Affine-S6" in out
     assert "mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in out
+    assert "Apply:" in out
 
 
 def test_search_command_uses_keyword_rank(monkeypatch, capsys):

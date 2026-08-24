@@ -108,9 +108,10 @@ You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords
 
 Job-finder submits **your** resume over the internet on your behalf when it can:
 
-1. **Email** — fetches the listing if needed, finds a hiring address, and emails the cover letter plus resume PDF. Needs your mailbox SMTP in `.env` (not a job-board API key).
-2. **Greenhouse HTTP** — `POST` to the official Job Board applications API with your resume and letter. Needs that **company's** `GREENHOUSE_JOB_BOARD_KEY` (you cannot use Stripe's key to apply to Stripe). Optional.
-3. **Package** — if neither path works, it still writes `.applications/<id>-company-role/` (`cover-letter.txt`, `resume.pdf`, `application.eml`) for you to send.
+1. **Email API key** — Resend, SendGrid, or Mailgun. Set `RESEND_API_KEY` / `SENDGRID_API_KEY` / `MAILGUN_API_KEY`+`MAILGUN_DOMAIN`, or a generic `APPLY_API_KEY` (`re_...` or `SG....`). This is the job-seeker path: a key you can create yourself.
+2. **SMTP** — same send, using `APPLY_SMTP_HOST` if you prefer a mailbox login over an API key.
+3. **Greenhouse HTTP** — `POST` to the official Job Board applications API when `GREENHOUSE_JOB_BOARD_KEY` is set. That key belongs to the **company’s board**, so it only works for boards you control.
+4. **Package** — `.applications/` with `cover-letter.txt`, `resume.pdf`, `application.eml` when nothing can be posted.
 
 ```bash
 jobfinder search "python intern" --resume resume.example.txt --apply 3
@@ -120,7 +121,16 @@ jobfinder apply --saved --draft-only
 
 `--apply` and `jobfinder apply` send over the internet by default. `--draft-only` only writes the letter.
 
-Your mailbox (no job-board API key):
+Email API key (recommended):
+
+```
+APPLY_FROM=you@example.com
+RESEND_API_KEY=re_xxxxxxxx
+```
+
+or `SENDGRID_API_KEY=SG.xxxxxxxx` or `APPLY_API_KEY=re_xxxxxxxx`.
+
+SMTP fallback:
 
 ```
 APPLY_FROM=you@example.com
@@ -128,7 +138,6 @@ APPLY_SMTP_HOST=smtp.example.com
 APPLY_SMTP_PORT=587
 APPLY_SMTP_USER=you@example.com
 APPLY_SMTP_PASSWORD=...
-APPLY_PHONE=202-555-0100
 ```
 
 Greenhouse Job Board API key, only if you have the board's own key:
@@ -137,7 +146,7 @@ Greenhouse Job Board API key, only if you have the board's own key:
 GREENHOUSE_JOB_BOARD_KEY=...
 ```
 
-Captcha-gated career pages (modern Greenhouse embeds, Lever, Workday) still cannot be completed without their own form. The app will not bypass captchas.
+`HF_TOKEN` is for Affine-S6 ranking, not for submitting applications. Captcha-gated career pages are not bypassed.
 
 On the web UI, **Submit resume over the internet** on a listing or tracker row. Check **Draft only** to skip sending.
 

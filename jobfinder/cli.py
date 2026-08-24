@@ -368,6 +368,14 @@ def cmd_model(_: argparse.Namespace) -> int:
     console.print(f"Humanizer:  {HUMANIZER_MODEL_ID}")
     console.print(f"            {HUMANIZER_URL}")
     console.print(f"            backend {humanizer_backend()}")
+    from jobfinder.submit import email_backend, greenhouse_ready
+
+    mail = email_backend() or "none"
+    console.print(f"Apply:      email {mail}")
+    console.print(
+        "            greenhouse "
+        + ("Job Board API key set" if greenhouse_ready() else "no board API key")
+    )
     return 0
 
 

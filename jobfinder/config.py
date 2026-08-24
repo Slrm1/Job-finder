@@ -52,6 +52,17 @@ APPLY_SMTP_TLS = os.getenv("APPLY_SMTP_TLS", "1").strip().lower() not in {
     "off",
 }
 APPLY_PHONE = os.getenv("APPLY_PHONE", "").strip()
+APPLY_EMAIL_BACKEND = os.getenv("APPLY_EMAIL_BACKEND", "auto").strip().lower()
+APPLY_API_KEY = os.getenv("APPLY_API_KEY", "").strip()
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip() or (
+    APPLY_API_KEY if APPLY_API_KEY.startswith("re_") else ""
+)
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "").strip() or (
+    APPLY_API_KEY if APPLY_API_KEY.startswith("SG.") else ""
+)
+MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY", "").strip()
+MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN", "").strip()
+MAILGUN_API_BASE = os.getenv("MAILGUN_API_BASE", "https://api.mailgun.net").rstrip("/")
 GREENHOUSE_JOB_BOARD_KEY = os.getenv("GREENHOUSE_JOB_BOARD_KEY", "").strip()
 GREENHOUSE_BOARDS = [
     token.strip()
