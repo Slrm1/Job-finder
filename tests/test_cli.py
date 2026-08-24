@@ -189,7 +189,7 @@ def test_web_index_and_search(monkeypatch):
     assert b"Python Intern" in response.data
     assert b"Good intern fit" in response.data
     assert b"Save to tracker" in response.data
-    assert b"Write cover letter and apply" in response.data
+    assert b"Submit resume over the internet" in response.data
 
     sample = (
         b"Ada Lovelace\nPython intern\n\nSkills\nPython, Flask, SQL, Git\n\n"

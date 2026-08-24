@@ -203,11 +203,9 @@
             <input type="hidden" name="source" value="{{ item.job.source }}">
             <input type="hidden" name="score" value="{{ item.score }}">
             <textarea name="description" hidden>{{ item.job.description[:2000] }}</textarea>
-            {% if smtp_ready %}
-            <label class="meta"><input type="checkbox" name="send"> Email if a hiring address is found</label>
-            {% endif %}
+            <label class="meta"><input type="checkbox" name="draft_only"> Draft only (do not send)</label>
             <label class="meta"><input type="checkbox" name="mark_applied"> Mark as applied</label>
-            <button type="submit">Write cover letter and apply</button>
+            <button type="submit">Submit resume over the internet</button>
           </form>
         </article>
       {% endfor %}

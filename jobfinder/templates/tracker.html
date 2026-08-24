@@ -103,11 +103,9 @@
             </select>
           </form>
           <form method="post" action="{{ url_for('tracker_apply', entry_id=row.id) }}">
-            {% if smtp_ready %}
-            <label class="meta"><input type="checkbox" name="send"> Send email</label>
-            {% endif %}
+            <label class="meta"><input type="checkbox" name="draft_only"> Draft only</label>
             <label class="meta"><input type="checkbox" name="mark_applied" checked> Mark applied</label>
-            <button type="submit">{% if row.cover_letter %}Submit application{% else %}Write cover letter and apply{% endif %}</button>
+            <button type="submit">{% if row.cover_letter %}Submit over the internet{% else %}Write letter and submit{% endif %}</button>
           </form>
           <form method="post" action="{{ url_for('tracker_remove', entry_id=row.id) }}">
             <button type="submit">Remove</button>

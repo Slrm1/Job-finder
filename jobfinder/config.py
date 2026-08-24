@@ -51,6 +51,8 @@ APPLY_SMTP_TLS = os.getenv("APPLY_SMTP_TLS", "1").strip().lower() not in {
     "no",
     "off",
 }
+APPLY_PHONE = os.getenv("APPLY_PHONE", "").strip()
+GREENHOUSE_JOB_BOARD_KEY = os.getenv("GREENHOUSE_JOB_BOARD_KEY", "").strip()
 GREENHOUSE_BOARDS = [
     token.strip()
     for token in os.getenv(

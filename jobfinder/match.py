@@ -37,6 +37,7 @@ class Profile:
     headline: str = ""
     location: str = ""
     email: str = ""
+    phone: str = ""
     remote_ok: bool = True
     experience_level: str = ""
     skills: list[str] = field(default_factory=list)
@@ -54,6 +55,7 @@ class Profile:
             headline=str(data.get("headline") or ""),
             location=str(data.get("location") or ""),
             email=str(data.get("email") or ""),
+            phone=str(data.get("phone") or ""),
             remote_ok=bool(data.get("remote_ok", True)),
             experience_level=str(data.get("experience_level") or ""),
             skills=_as_list(data.get("skills")),
@@ -86,6 +88,7 @@ class Profile:
             f"Headline: {self.headline}\n"
             f"Location: {self.location}\n"
             f"Email: {self.email}\n"
+            f"Phone: {self.phone}\n"
             f"Remote OK: {self.remote_ok}\n"
             f"Experience: {self.experience_level}\n"
             f"Skills: {skills}\n"

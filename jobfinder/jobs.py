@@ -118,13 +118,13 @@ _SKIP_EMAIL_LOCAL = {"noreply", "no-reply", "donotreply", "do-not-reply"}
 def extract_apply_email(*parts: str) -> str:
     """Best-effort hiring email from a listing URL or description."""
     blob = " ".join(part or "" for part in parts)
-    mailto = re.search(r"mailto:([^?\s>]+)", blob, re.I)
+    mailto = re.search(r"mailto:([^?\s>\"']+)", blob, re.I)
     candidates = []
     if mailto:
         candidates.append(mailto.group(1))
     candidates.extend(_EMAIL_RE.findall(blob))
     for raw in candidates:
-        email = html.unescape(raw).strip(".,;<>()[]")
+        email = html.unescape(raw).strip(".,;<>()[]\"'")
         if "@" not in email:
             continue
         local, _, domain = email.lower().partition("@")

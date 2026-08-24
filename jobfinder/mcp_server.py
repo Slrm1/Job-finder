@@ -178,7 +178,7 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> str:
         result = apply_to_tracked(
             int(arguments["id"]),
             resolve_profile(),
-            send=bool(arguments.get("send")),
+            send=bool(arguments.get("send", True)),
             mark_applied=bool(arguments.get("mark_applied", True)),
         )
         return json.dumps(result.to_dict(), indent=2)

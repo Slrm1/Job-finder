@@ -103,7 +103,7 @@ def cmd_search(args: argparse.Namespace) -> int:
             ranked,
             profile,
             limit=args.apply,
-            send=getattr(args, "send", False),
+            send=not getattr(args, "draft_only", False),
             mark_applied=getattr(args, "mark_applied", False),
             affine=args.affine,
         )
@@ -186,6 +186,7 @@ def cmd_profile(args: argparse.Namespace) -> int:
     console.print(f"Headline: {profile.headline or '—'}")
     console.print(f"Location: {profile.location or '—'}")
     console.print(f"Email:    {profile.email or '—'}")
+    console.print(f"Phone:    {profile.phone or '—'}")
     console.print(f"Level:    {profile.experience_level or '—'}")
     console.print("Skills:   " + (", ".join(profile.skills) or "—"))
     console.print("Keywords: " + (", ".join(profile.keywords) or "—"))
@@ -283,7 +284,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
             result = apply_to_tracked(
                 entry_id,
                 profile,
-                send=args.send,
+                send=not args.draft_only,
                 mark_applied=args.mark_applied,
                 affine=args.affine,
             )
@@ -406,12 +407,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--apply",
         type=int,
         metavar="N",
-        help="Draft cover letters and application packages for the top N matches",
+        help="Write cover letters and submit the top N matches over the internet",
     )
     search.add_argument(
         "--send",
         action="store_true",
-        help="Email cover letters when a hiring address is found (needs SMTP)",
+        help="(default with --apply) Submit over email or Greenhouse",
+    )
+    search.add_argument(
+        "--draft-only",
+        action="store_true",
+        help="Write cover letters without sending them",
     )
     search.add_argument(
         "--mark-applied",
@@ -430,6 +436,7 @@ def build_parser() -> argparse.ArgumentParser:
     rank.add_argument("--save", type=int, metavar="N")
     rank.add_argument("--apply", type=int, metavar="N")
     rank.add_argument("--send", action="store_true")
+    rank.add_argument("--draft-only", action="store_true")
     rank.add_argument("--mark-applied", action="store_true")
     rank.set_defaults(func=cmd_rank)
 
@@ -477,7 +484,12 @@ def build_parser() -> argparse.ArgumentParser:
     apply_cmd.add_argument(
         "--send",
         action="store_true",
-        help="Email the letter when a hiring address exists (APPLY_SMTP_HOST)",
+        help="(default) Submit over the internet via email or Greenhouse",
+    )
+    apply_cmd.add_argument(
+        "--draft-only",
+        action="store_true",
+        help="Write the cover letter and package without sending",
     )
     apply_cmd.add_argument(
         "--mark-applied",

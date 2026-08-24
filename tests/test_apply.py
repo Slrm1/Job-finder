@@ -1,9 +1,8 @@
-from pathlib import Path
-
 from jobfinder.apply import apply_to_job, apply_to_tracked
 from jobfinder.coverletter import draft_cover_letter
 from jobfinder.jobs import Job, extract_apply_email
 from jobfinder.match import Profile
+from jobfinder.submit import SubmitResult
 from jobfinder.tracker import save_job
 
 
@@ -88,7 +87,8 @@ def test_apply_writes_package_and_can_email(tmp_path, monkeypatch):
     assert "Python Intern" in payload
 
 
-def test_apply_without_email_packages_url_job(tmp_path):
+def test_apply_without_email_packages_url_job(tmp_path, monkeypatch):
+    monkeypatch.setattr("jobfinder.submit.get_url", lambda url: (url, ""))
     db = tmp_path / "apps.db"
     job = _job(apply_email="", description="No email here, use the site.", url="https://jobs.acme.test/1")
     result = apply_to_job(
@@ -113,3 +113,31 @@ def test_save_job_keeps_cover_letter_on_update(tmp_path):
     assert first.id == again.id
     assert again.cover_letter == "Hello Acme\n"
     assert again.apply_email == "jobs@acme.test"
+
+
+def test_apply_posts_greenhouse_when_key_ready(tmp_path, monkeypatch):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    monkeypatch.setattr("jobfinder.apply.greenhouse_ready", lambda: True)
+    monkeypatch.setattr(
+        "jobfinder.apply.submit_greenhouse",
+        lambda *a, **k: SubmitResult(
+            submitted=True, method="greenhouse", message="posted"
+        ),
+    )
+    job = _job(
+        apply_email="",
+        url="https://boards.greenhouse.io/acme/jobs/42",
+        description="Python internship on a Greenhouse board.",
+    )
+    result = apply_to_job(
+        job,
+        _profile(),
+        send=True,
+        db_path=db,
+        apply_dir=tmp_path / "out",
+        humanize=False,
+    )
+    assert result.submitted is True
+    assert result.method == "greenhouse"
+    assert result.tracked.status == "applied"

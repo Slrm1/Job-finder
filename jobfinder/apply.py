@@ -21,6 +21,7 @@ from jobfinder.config import (
 from jobfinder.coverletter import generate_cover_letter
 from jobfinder.jobs import Job, extract_apply_email
 from jobfinder.match import Profile
+from jobfinder.submit import discover_apply_target, greenhouse_ready, submit_greenhouse
 from jobfinder.tracker import TrackedJob, get_tracked, record_application, save_job, set_cover_letter
 
 SmtpSender = Callable[[EmailMessage], None]
@@ -207,9 +208,10 @@ def write_package(
         f"Apply email: {row.apply_email or '(none found)'}",
         f"Status: {row.status}",
         "",
-        "Company career-page forms (Greenhouse, Lever, Workday, etc.) are not",
-        "auto-submitted. Open the listing and paste cover-letter.txt there.",
-        "If an apply email was found, send application.eml or use --send with SMTP.",
+        "Company career-page forms that need extra questions or a captcha",
+        "cannot be finished over HTTP. Greenhouse boards can be submitted when",
+        "GREENHOUSE_JOB_BOARD_KEY is set. Otherwise email the .eml file or paste",
+        "cover-letter.txt on the listing.",
     ]
     (dest / "HOW_TO_SUBMIT.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     if row.apply_email:
@@ -245,37 +247,77 @@ def _finish(
     submitted = False
     method = "package"
     message = f"Wrote application package to {folder}"
-    if row.apply_email:
-        message += f". Hiring email: {row.apply_email}"
-    elif row.url:
-        message += f". Open the listing to paste the letter: {row.url}"
-    else:
-        message += ". No apply email or URL was found."
+    resume_pdf = folder / "resume.pdf"
 
-    if send and row.apply_email and (smtp_send or smtp_ready()):
-        sender = smtp_send or _smtp_send
-        sender(_build_message(row, profile, letter, folder / "resume.pdf"))
-        row = record_application(row.id, via="email", db_path=db_path)
-        submitted = True
-        method = "email"
-        message = f"Sent cover letter and resume to {row.apply_email}"
-    elif send and row.apply_email:
-        method = "eml"
-        message = (
-            f"Saved {folder / 'application.eml'} for {row.apply_email}. "
-            "Set APPLY_SMTP_HOST and APPLY_FROM in .env to send from the CLI."
+    if send:
+        target = discover_apply_target(
+            row.url,
+            f"{row.apply_email} {row.description}",
         )
-        if mark_applied:
-            row = record_application(row.id, via="eml", db_path=db_path)
-    elif send and not row.apply_email:
-        method = "url" if row.url else "package"
-        message = (
-            "No hiring email on this listing, so the letter was not emailed. "
-            f"Package: {folder}"
-            + (f" Open and submit at {row.url}" if row.url else "")
-        )
-        if mark_applied:
-            row = record_application(row.id, via=method, db_path=db_path)
+        if target.email and target.email != row.apply_email:
+            row = save_job(
+                job_from_tracked(row),
+                apply_email=target.email,
+                status=row.status,
+                notes=row.notes,
+                cover_letter=letter,
+                db_path=db_path,
+            )
+        if row.apply_email and (smtp_send or smtp_ready()):
+            sender = smtp_send or _smtp_send
+            sender(_build_message(row, profile, letter, resume_pdf))
+            row = record_application(row.id, via="email", db_path=db_path)
+            submitted = True
+            method = "email"
+            message = f"Sent cover letter and resume to {row.apply_email} over the internet."
+        elif target.greenhouse and greenhouse_ready():
+            from jobfinder.submit import SubmitError
+
+            try:
+                gh = submit_greenhouse(
+                    target.greenhouse_board,
+                    target.greenhouse_job_id,
+                    profile,
+                    letter,
+                    resume_pdf=resume_pdf if resume_pdf.is_file() else None,
+                )
+            except SubmitError as exc:
+                method = "greenhouse"
+                message = str(exc)
+            else:
+                method = gh.method
+                message = gh.message
+                if gh.submitted:
+                    row = record_application(row.id, via="greenhouse", db_path=db_path)
+                    submitted = True
+                elif mark_applied:
+                    row = record_application(row.id, via="greenhouse", db_path=db_path)
+        elif row.apply_email:
+            method = "eml"
+            message = (
+                f"Saved {folder / 'application.eml'} for {row.apply_email}. "
+                "Set APPLY_SMTP_HOST and APPLY_FROM in .env to send it over the internet."
+            )
+            if mark_applied:
+                row = record_application(row.id, via="eml", db_path=db_path)
+        elif target.greenhouse:
+            method = "greenhouse"
+            message = (
+                "This Greenhouse listing can be submitted over HTTP if you set "
+                "GREENHOUSE_JOB_BOARD_KEY (the company's Job Board API key). "
+                f"Package: {folder}. Listing: {row.url}"
+            )
+            if mark_applied:
+                row = record_application(row.id, via="greenhouse", db_path=db_path)
+        else:
+            method = "url" if row.url else "package"
+            message = (
+                "No hiring email on this listing, so nothing was emailed. "
+                f"Package: {folder}"
+                + (f" Open and submit at {row.url}" if row.url else "")
+            )
+            if mark_applied:
+                row = record_application(row.id, via=method, db_path=db_path)
     elif mark_applied:
         row = record_application(row.id, via=method, db_path=db_path)
         submitted = True

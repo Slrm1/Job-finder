@@ -172,7 +172,7 @@ def create_app(
             apply_to_job(
                 job,
                 profile,
-                send=request.form.get("send") == "on",
+                send=request.form.get("draft_only") != "on",
                 mark_applied=request.form.get("mark_applied") == "on",
                 score=score,
             )
@@ -260,7 +260,7 @@ def create_app(
             apply_to_tracked(
                 entry_id,
                 profile,
-                send=request.form.get("send") == "on",
+                send=request.form.get("draft_only") != "on",
                 mark_applied=request.form.get("mark_applied") == "on",
             )
         except Exception as exc:

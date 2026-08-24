@@ -106,19 +106,21 @@ You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords
 
 ## Apply with a cover letter
 
-The AI writes a cover letter from your resume, saves it with the job, and submits it when it can:
+Job-finder submits **your** resume over the internet on your behalf when it can:
 
-1. **Email** — if the listing has a hiring address and you set SMTP in `.env`, `--send` emails the letter plus your resume PDF.
-2. **Application package** — otherwise it writes `.applications/<id>-company-role/` with `cover-letter.txt`, `resume.pdf`, and `application.eml` you can send yourself.
-3. **Career-page forms** (Greenhouse, Lever, Workday, and similar) are not auto-filled. Those sites do not offer a public “submit this candidate” API, so the letter is drafted for you to paste on the listing.
+1. **Email** — fetches the listing if needed, finds a hiring address, and emails the cover letter plus resume PDF. Needs your mailbox SMTP in `.env` (not a job-board API key).
+2. **Greenhouse HTTP** — `POST` to the official Job Board applications API with your resume and letter. Needs that **company's** `GREENHOUSE_JOB_BOARD_KEY` (you cannot use Stripe's key to apply to Stripe). Optional.
+3. **Package** — if neither path works, it still writes `.applications/<id>-company-role/` (`cover-letter.txt`, `resume.pdf`, `application.eml`) for you to send.
 
 ```bash
 jobfinder search "python intern" --resume resume.example.txt --apply 3
-jobfinder apply 1 --send
-jobfinder apply --saved --mark-applied
+jobfinder apply 1
+jobfinder apply --saved --draft-only
 ```
 
-SMTP (optional, only needed to send mail from the CLI/web):
+`--apply` and `jobfinder apply` send over the internet by default. `--draft-only` only writes the letter.
+
+Your mailbox (no job-board API key):
 
 ```
 APPLY_FROM=you@example.com
@@ -126,9 +128,18 @@ APPLY_SMTP_HOST=smtp.example.com
 APPLY_SMTP_PORT=587
 APPLY_SMTP_USER=you@example.com
 APPLY_SMTP_PASSWORD=...
+APPLY_PHONE=202-555-0100
 ```
 
-On the web UI, use **Write cover letter and apply** on a listing or **Submit application** on the tracker. Cover letters stay on the tracker and download as `.txt`.
+Greenhouse Job Board API key, only if you have the board's own key:
+
+```
+GREENHOUSE_JOB_BOARD_KEY=...
+```
+
+Captcha-gated career pages (modern Greenhouse embeds, Lever, Workday) still cannot be completed without their own form. The app will not bypass captchas.
+
+On the web UI, **Submit resume over the internet** on a listing or tracker row. Check **Draft only** to skip sending.
 
 ## JobSync-style tracker, dashboard, and MCP
 
