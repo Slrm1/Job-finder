@@ -71,9 +71,13 @@ def test_download_affine_passes_allow_patterns(tmp_path, monkeypatch):
 
 
 def test_cache_status_lists_models_not_secrets():
-    blob = " ".join(f"{item.detail} {item.repo}" for item in cache_status())
+    items = cache_status()
+    blob = " ".join(f"{item.name} {item.detail} {item.repo} {item.path}" for item in items)
     assert "WebScraper991923/Affine-S6" in blob
     assert "mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in blob
     assert HUMANIZER_GGUF_FILE in blob
     assert "hf_" not in blob
     assert "re_" not in blob
+    names = {item.name for item in items}
+    assert "Affine-S6 weights" in names
+    assert "Humanizer GGUF" in names
