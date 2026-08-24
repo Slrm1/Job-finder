@@ -16,6 +16,17 @@ def test_parser_search_flags():
     assert args.resume == "me.pdf"
 
 
+def test_parser_dashboard_resume_pdf_and_mcp():
+    parser = build_parser()
+    assert parser.parse_args(["dashboard"]).func.__name__ == "cmd_dashboard"
+    pdf = parser.parse_args(
+        ["resume-pdf", "--resume", "resume.example.txt", "-o", "out.pdf", "--template", "professional"]
+    )
+    assert pdf.output == "out.pdf"
+    assert pdf.template == "professional"
+    assert parser.parse_args(["mcp"]).func.__name__ == "cmd_mcp"
+
+
 def test_humanize_command(capsys):
     assert (
         main(
@@ -72,6 +83,50 @@ def test_search_command_uses_keyword_rank(monkeypatch, capsys):
     assert "Acme" in out
 
 
+def test_dashboard_command(tmp_path, monkeypatch, capsys):
+    db = tmp_path / "apps.db"
+    monkeypatch.setattr("jobfinder.tracker.JOBFINDER_DB", db)
+    from jobfinder.tracker import save_job
+
+    save_job(
+        Job(
+            id="1",
+            title="Python Intern",
+            company="Acme",
+            location="Remote",
+            url="https://example.com/1",
+            description="Python",
+            source="remotive",
+        ),
+        db_path=db,
+    )
+    assert main(["dashboard"]) == 0
+    out = capsys.readouterr().out
+    assert "Python Intern" in out
+    assert "Acme" in out
+    assert "total=1" in out
+
+
+def test_resume_pdf_command(tmp_path, capsys):
+    dest = tmp_path / "ada.pdf"
+    assert (
+        main(
+            [
+                "resume-pdf",
+                "--resume",
+                "resume.example.txt",
+                "-o",
+                str(dest),
+                "--template",
+                "professional",
+            ]
+        )
+        == 0
+    )
+    assert dest.read_bytes()[:5] == b"%PDF-"
+    assert "professional" in capsys.readouterr().out
+
+
 def test_web_index_and_search(monkeypatch):
     job = Job(
         id="1",
@@ -92,6 +147,8 @@ def test_web_index_and_search(monkeypatch):
     assert b'name="resume"' in home.data
     assert b"humanize" in home.data
     assert b"mradermacher/Ai-Humanizer-Llama-3.2-3B-GGUF" in home.data
+    assert b"Dashboard" in home.data
+    assert b"Tracker" in home.data
 
     ranked = RankedJob(job=job, score=90, summary="Good intern fit", method="keywords")
     monkeypatch.setattr(
@@ -102,7 +159,6 @@ def test_web_index_and_search(monkeypatch):
     assert b"Python Intern" in response.data
     assert b"Good intern fit" in response.data
     assert b"Save to tracker" in response.data
-    assert b"Tracker" in home.data
 
     sample = (
         b"Ada Lovelace\nPython intern\n\nSkills\nPython, Flask, SQL, Git\n\n"
@@ -153,3 +209,29 @@ def test_web_tracker_save_and_list(tmp_path, monkeypatch):
     assert saved.status_code == 200
     assert b"Python Intern" in saved.data
     assert b"Acme" in saved.data
+
+    dash = client.get("/dashboard")
+    assert dash.status_code == 200
+    assert b"Dashboard" in dash.data
+    assert b"Python Intern" in dash.data
+    assert b"Moved forward" in dash.data
+
+    payload = client.get("/api/jobs").get_json()
+    assert payload[0]["title"] == "Python Intern"
+    stats = client.get("/api/dashboard").get_json()
+    assert stats["total"] == 1
+    assert stats["counts"]["saved"] == 1
+
+
+def test_web_resume_pdf():
+    app = create_app(resume_path="resume.example.txt")
+    client = app.test_client()
+    simple = client.get("/resume.pdf")
+    assert simple.status_code == 200
+    assert simple.data[:5] == b"%PDF-"
+    assert simple.mimetype == "application/pdf"
+    professional = client.get("/resume.pdf?template=professional")
+    assert professional.status_code == 200
+    assert professional.data[:5] == b"%PDF-"
+    bad = client.get("/resume.pdf?template=fancy")
+    assert bad.status_code == 400

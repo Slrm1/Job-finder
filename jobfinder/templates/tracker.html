@@ -59,10 +59,7 @@
 </head>
 <body>
   <main>
-    <nav>
-      <a href="{{ url_for('index') }}">Search</a>
-      <a href="{{ url_for('tracker') }}">Tracker</a>
-    </nav>
+    {% include "nav.html" %}
     <h1>Application tracker</h1>
     <p class="lede">
       Saved locally, in the JobSync style: keep score, status, and notes without sending

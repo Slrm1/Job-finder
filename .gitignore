@@ -18,6 +18,7 @@ jobs.db
 *.log
 .DS_Store
 resume.pdf
+resume-export.pdf
 resume.docx
 resume.txt
 Resume.pdf

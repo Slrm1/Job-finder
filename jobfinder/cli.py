@@ -238,6 +238,51 @@ def cmd_pitch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dashboard(_: argparse.Namespace) -> int:
+    from jobfinder.tracker import STATUSES, dashboard_stats
+
+    stats = dashboard_stats()
+    table = Table(title="Application dashboard")
+    table.add_column("Status")
+    table.add_column("Count", justify="right")
+    for name in STATUSES:
+        table.add_row(name, str(stats["counts"][name]))
+    console.print(table)
+    console.print(
+        f"total={stats['total']}  moved={stats['applied']}  "
+        f"interviews={stats['interviews']}  offers={stats['offers']}"
+    )
+    console.print(
+        f"apply {stats['apply_rate']}% · interview {stats['interview_rate']}% · "
+        f"offer {stats['offer_rate']}%"
+    )
+    if stats["recent"]:
+        console.print("\n[bold]Recent[/bold]")
+        for row in stats["recent"]:
+            console.print(f"  #{row.id} {row.title} — {row.company} [{row.status}]")
+    else:
+        console.print("[dim]Save jobs from search --save or the web tracker.[/dim]")
+    return 0
+
+
+def cmd_resume_pdf(args: argparse.Namespace) -> int:
+    from jobfinder.pdf import render_resume_pdf
+
+    profile = _load_profile(args)
+    dest = Path(args.output)
+    path = render_resume_pdf(profile, dest, template=args.template)
+    console.print(f"Wrote {path} ({args.template})")
+    if not profile.resume_text and not profile.name:
+        console.print("[yellow]No resume loaded; PDF is a sparse template.[/yellow]")
+    return 0
+
+
+def cmd_mcp(_: argparse.Namespace) -> int:
+    from jobfinder.mcp_server import serve_stdio
+
+    return serve_stdio()
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from jobfinder.web import create_app
 
@@ -354,6 +399,27 @@ def build_parser() -> argparse.ArgumentParser:
     remove = track_sub.add_parser("remove", help="Delete a saved job")
     remove.add_argument("id", type=int)
     remove.set_defaults(func=cmd_track)
+
+    dashboard = sub.add_parser("dashboard", help="Show application pipeline stats")
+    dashboard.set_defaults(func=cmd_dashboard)
+
+    resume_pdf = sub.add_parser("resume-pdf", help="Export a resume PDF from your profile")
+    _add_candidate_flags(resume_pdf)
+    resume_pdf.add_argument(
+        "-o",
+        "--output",
+        default="resume-export.pdf",
+        help="Output path (default: resume-export.pdf)",
+    )
+    resume_pdf.add_argument(
+        "--template",
+        choices=["simple", "professional"],
+        default="simple",
+    )
+    resume_pdf.set_defaults(func=cmd_resume_pdf)
+
+    mcp = sub.add_parser("mcp", help="Run the local MCP server on stdin/stdout")
+    mcp.set_defaults(func=cmd_mcp)
 
     serve = sub.add_parser("serve", help="Run the web UI")
     serve.add_argument("--host", default="127.0.0.1")

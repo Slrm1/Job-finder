@@ -246,3 +246,23 @@ def counts(db_path: Path | None = None) -> dict[str, int]:
     for row in rows:
         tallies[row["status"]] = row["n"]
     return tallies
+
+
+def dashboard_stats(db_path: Path | None = None) -> dict[str, Any]:
+    tallies = counts(db_path=db_path)
+    rows = list_tracked(db_path=db_path)
+    total = sum(tallies.values())
+    progressed = tallies["applied"] + tallies["interview"] + tallies["offer"] + tallies["rejected"]
+    offers = tallies["offer"]
+    interviews = tallies["interview"] + tallies["offer"]
+    return {
+        "counts": tallies,
+        "total": total,
+        "applied": progressed,
+        "interviews": interviews,
+        "offers": offers,
+        "apply_rate": round(100.0 * progressed / total, 1) if total else 0.0,
+        "interview_rate": round(100.0 * interviews / total, 1) if total else 0.0,
+        "offer_rate": round(100.0 * offers / total, 1) if total else 0.0,
+        "recent": rows[:8],
+    }

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from flask import Flask, redirect, render_template, request, url_for
+from io import BytesIO
+from pathlib import Path
+import tempfile
+
+from flask import Flask, jsonify, redirect, render_template, request, send_file, url_for
 
 from jobfinder.config import (
     AFFINE_S6_MODEL_ID,
@@ -161,6 +165,55 @@ def create_app(
             counts=counts(),
             filter_status=status,
         )
+
+    @app.get("/dashboard")
+    def dashboard():
+        from jobfinder.tracker import dashboard_stats
+
+        return render_template(
+            "dashboard.html",
+            model_id=AFFINE_S6_MODEL_ID,
+            model_url=AFFINE_S6_URL,
+            humanizer_id=HUMANIZER_MODEL_ID,
+            humanizer_url=HUMANIZER_URL,
+            stats=dashboard_stats(),
+        )
+
+    @app.get("/resume.pdf")
+    def resume_pdf():
+        from jobfinder.pdf import TEMPLATES, render_resume_pdf
+
+        template = request.args.get("template") or "simple"
+        if template not in TEMPLATES:
+            return _template(error=f"Unknown template {template}", results=[]), 400
+        profile = _base_profile(profile_path, resume_path)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "resume.pdf"
+            render_resume_pdf(profile, path, template=template)
+            data = path.read_bytes()
+        return send_file(
+            BytesIO(data),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name="resume.pdf",
+        )
+
+    @app.get("/api/jobs")
+    def api_jobs():
+        from jobfinder.tracker import list_tracked
+
+        status = request.args.get("status") or None
+        rows = [row.to_dict() for row in list_tracked(status=status)]
+        return jsonify(rows)
+
+    @app.get("/api/dashboard")
+    def api_dashboard():
+        from jobfinder.tracker import dashboard_stats
+
+        stats = dashboard_stats()
+        payload = dict(stats)
+        payload["recent"] = [row.to_dict() for row in stats["recent"]]
+        return jsonify(payload)
 
     @app.post("/tracker/<int:entry_id>/status")
     def tracker_status(entry_id: int):

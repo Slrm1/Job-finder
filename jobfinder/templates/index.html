@@ -47,6 +47,16 @@
     .row { display: flex; flex-wrap: wrap; gap: 1rem; }
     .row > * { flex: 1; min-width: 140px; }
     .checks { display: flex; gap: 1rem; flex-wrap: wrap; }
+    button {
+      background: var(--accent);
+      color: #081018;
+      border: 0;
+      border-radius: 999px;
+      padding: .75rem 1.2rem;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
     button.ghost {
       background: transparent;
       color: var(--accent);
@@ -85,10 +95,7 @@
 </head>
 <body>
   <main>
-    <nav>
-      <a href="{{ url_for('index') }}">Search</a>
-      <a href="{{ url_for('tracker') }}">Tracker</a>
-    </nav>
+    {% include "nav.html" %}
     <h1>Job-finder</h1>
     <p class="lede">
       Drop in your resume, then search public job boards. Listings are ranked with

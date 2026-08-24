@@ -104,22 +104,54 @@ Listings come from public JSON APIs (no account required):
 
 You can still use `profile.yaml` (see `profile.example.yaml`) for extra keywords or things to avoid. If both a resume and a YAML profile exist, they are merged.
 
-## JobSync-style tracker
+## JobSync-style tracker, dashboard, and MCP
 
-[JobSync](https://github.com/Gsync/jobsync) is a full self-hosted Next.js app (Docker, dashboard, MCP, PDF resume export). It is **not** a library this Python project can import, so the whole app is not vendored here.
-
-What *is* helpful from it is the workflow after you find a role: **save it, set a status, keep notes**. Job-finder now has a local SQLite tracker for that, plus Greenhouse company boards (the same public API JobSync uses for discovery):
+[JobSync](https://github.com/Gsync/jobsync) is a full self-hosted Next.js app. It is **not** a library this Python project can import, so the whole app is not vendored here. Job-finder implements the same local workflow in Python: **save a role, set a status, keep notes, see pipeline stats, export a resume PDF, and talk to agents over MCP**.
 
 ```bash
 jobfinder search "python intern" --resume resume.example.txt --save 5
 jobfinder track list
 jobfinder track status 1 applied
 jobfinder track note 1 "emailed the recruiter"
+jobfinder dashboard
+jobfinder resume-pdf --resume resume.example.txt -o ada.pdf --template professional
 ```
 
-On the web UI, click **Save to tracker** on a listing, then open **Tracker**. Opt into Greenhouse with `--sources remotive,greenhouse` or the Greenhouse checkbox. Default boards are Stripe, Airbnb, Discord, Figma, Notion, Cloudflare, and Databricks (`GREENHOUSE_BOARDS` to change them).
+On the web UI (`jobfinder serve`):
 
-If you want JobSync's full dashboard, resume PDF templates, and MCP server, run that project separately alongside this one.
+- **Search** — rank listings and click **Save to tracker**
+- **Dashboard** — pipeline counts, apply/interview/offer rates, recent jobs
+- **Tracker** — change status or remove a saved job
+- **Resume PDF** — download a simple or professional PDF from your loaded resume
+
+JSON is also available at `/api/jobs` and `/api/dashboard`. Applications are stored in local SQLite (`jobs.db`, or `JOBFINDER_DB`).
+
+Opt into Greenhouse with `--sources remotive,greenhouse` or the Greenhouse checkbox. Default boards are Stripe, Airbnb, Discord, Figma, Notion, Cloudflare, and Databricks (`GREENHOUSE_BOARDS` to change them).
+
+### MCP server
+
+Agents can add and update saved jobs without opening the UI:
+
+```bash
+jobfinder mcp
+```
+
+That speaks JSON-RPC on stdin/stdout (`initialize`, `tools/list`, `tools/call`). Tools: `add_job`, `list_jobs`, `set_status`, `pipeline_stats`.
+
+Example Claude Desktop config (after `pip install -e .`):
+
+```json
+{
+  "mcpServers": {
+    "jobfinder": {
+      "command": "jobfinder",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Or `python -m jobfinder mcp` if the `jobfinder` script is not on `PATH`.
 
 ## Tests
 
